@@ -120,7 +120,7 @@ function drawClouds(root: Container): { clouds: CloudSprite[]; shadows: CloudSpr
     cloud.x = pos.x;
     cloud.y = pos.y;
     cloud.scale.set(scale);
-    cloud.addChild(makeCloudPuff());
+    cloud.addChild(makeCloudPuff(rng));
     cloudLayer.addChild(cloud);
     clouds.push(cloud);
 
@@ -130,7 +130,7 @@ function drawClouds(root: Container): { clouds: CloudSprite[]; shadows: CloudSpr
     shadow.y = HORIZON + 30 + rng() * 20;
     shadow.scale.set(scale * 1.1, scale * 0.35);
     const shadowGfx = new Graphics();
-    shadowGfx.ellipse(0, 0, 26, 10).fill({ color: 0x1a1108, alpha: 0.1 });
+    shadowGfx.ellipse(0, 0, 26, 10).fill({ color: hexToNumber(palette.sky.dusk[0]), alpha: 0.14 });
     shadow.addChild(shadowGfx);
     shadowLayer.addChild(shadow);
     shadows.push(shadow);
@@ -140,17 +140,45 @@ function drawClouds(root: Container): { clouds: CloudSprite[]; shadows: CloudSpr
   return { clouds, shadows };
 }
 
-function makeCloudPuff(): Graphics {
+/**
+ * Builds one handcrafted-feeling cloud from a cluster of irregular puffs in
+ * three passes — a cool shadow silhouette peeking from underneath, the cream
+ * base, and small warm highlights on the sun-facing puffs — instead of a
+ * handful of uniform same-tone circles.
+ */
+function makeCloudPuff(rng: () => number): Graphics {
   const g = new Graphics();
-  const puffs = [
-    { x: -18, y: 4, r: 10 },
-    { x: 0, y: -4, r: 14 },
-    { x: 18, y: 4, r: 11 },
-    { x: -4, y: 8, r: 12 },
-  ];
-  for (const puff of puffs) {
-    g.circle(puff.x, puff.y, puff.r).fill({ color: 0xfff6e6, alpha: 0.85 });
+  const puffs: { x: number; y: number; r: number }[] = [];
+
+  const rowCount = 5 + Math.floor(rng() * 2);
+  for (let i = 0; i < rowCount; i++) {
+    const t = i / (rowCount - 1);
+    const edgeFalloff = Math.max(0.4, 1 - Math.abs(t - 0.5) * 1.5);
+    puffs.push({
+      x: (t - 0.5) * 44 + (rng() - 0.5) * 4,
+      y: -Math.sin(t * Math.PI) * 5 + (rng() - 0.5) * 3,
+      r: (6.5 + rng() * 5) * edgeFalloff,
+    });
   }
+  const topCount = 2 + Math.floor(rng() * 2);
+  for (let i = 0; i < topCount; i++) {
+    puffs.push({ x: (rng() - 0.5) * 22, y: -9 - rng() * 5, r: 5 + rng() * 4 });
+  }
+
+  for (const puff of puffs) {
+    g.circle(puff.x - 1, puff.y + 3, puff.r * 0.9).fill({ color: hexToNumber(palette.cloud.shadow), alpha: 0.4 });
+  }
+  for (const puff of puffs) {
+    g.circle(puff.x, puff.y, puff.r).fill({ color: hexToNumber(palette.cloud.base), alpha: 0.95 });
+  }
+  const highlightPicks = [...puffs].sort((a, b) => a.y - b.y).slice(0, Math.ceil(puffs.length * 0.4));
+  for (const puff of highlightPicks) {
+    g.circle(puff.x - puff.r * 0.15, puff.y - puff.r * 0.3, puff.r * 0.5).fill({
+      color: hexToNumber(palette.cloud.highlight),
+      alpha: 0.8,
+    });
+  }
+
   return g;
 }
 
@@ -171,15 +199,63 @@ function drawTrees(root: Container): void {
   const treeXs = [26, 88, 150, 320, 388, 448];
   for (const x of treeXs) {
     const baseY = HORIZON + 18 + rng() * 6;
-    const tree = new Graphics();
-    tree.rect(x - 2, baseY - 10, 4, 14).fill(hexToNumber(palette.wood.darker));
-    tree.circle(x, baseY - 20, 12).fill(hexToNumber(palette.grass.dark));
-    tree.circle(x - 7, baseY - 14, 9).fill(hexToNumber(palette.grass.base));
-    tree.circle(x + 7, baseY - 14, 9).fill(hexToNumber(palette.grass.base));
-    tree.circle(x, baseY - 26, 8).fill(hexToNumber(palette.grass.light));
-    layer.addChild(tree);
+    layer.addChild(buildTree(x, baseY, rng));
   }
   root.addChild(layer);
+}
+
+/**
+ * One handcrafted tree: a tapered two-tone trunk with a lit edge, and a
+ * canopy built from a jittered ring of overlapping puffs rendered in four
+ * passes (shadow silhouette, base, sun-side mid-tone, small highlight dabs)
+ * so it reads as a rounded, organic mass instead of stacked circles.
+ */
+function buildTree(x: number, baseY: number, rng: () => number): Graphics {
+  const g = new Graphics();
+  const trunkHeight = 12 + rng() * 4;
+  const trunkTopY = baseY - trunkHeight;
+
+  g.poly([x - 4, baseY, x - 1.5, trunkTopY + 3, x + 1.5, trunkTopY + 3, x + 4, baseY]).fill(
+    hexToNumber(palette.wood.dark),
+  );
+  g.rect(x - 2.2, trunkTopY, 2.4, trunkHeight).fill(hexToNumber(palette.wood.darker));
+  g.rect(x + 0.2, trunkTopY, 2.2, trunkHeight).fill(hexToNumber(palette.wood.dark));
+  g.rect(x + 1.1, trunkTopY, 0.9, trunkHeight * 0.75).fill(hexToNumber(palette.wood.light));
+
+  const canopyY = trunkTopY + 3;
+  const puffs: { dx: number; dy: number; r: number }[] = [];
+  const ringCount = 7 + Math.floor(rng() * 3);
+  for (let i = 0; i < ringCount; i++) {
+    const angle = (i / ringCount) * Math.PI * 2 + rng() * 0.5;
+    const dist = 4 + rng() * 6.5;
+    puffs.push({
+      dx: Math.cos(angle) * dist,
+      dy: Math.sin(angle) * dist * 0.62 - 4,
+      r: 5 + rng() * 3.6,
+    });
+  }
+  puffs.push({ dx: 0, dy: -8, r: 8.5 + rng() * 2 });
+
+  for (const p of puffs) {
+    g.circle(x + p.dx - 1, canopyY + p.dy + 2.2, p.r * 0.95).fill(hexToNumber(palette.foliage.shadow));
+  }
+  for (const p of puffs) {
+    g.circle(x + p.dx, canopyY + p.dy, p.r * 0.86).fill(hexToNumber(palette.foliage.base));
+  }
+  for (const p of puffs) {
+    if (p.dx > -2.5) {
+      g.circle(x + p.dx + 1, canopyY + p.dy - 1.2, p.r * 0.52).fill(hexToNumber(palette.foliage.mid));
+    }
+  }
+  const highlightPicks = puffs.filter((p) => p.dx > 1 && p.dy < -1).slice(0, 3);
+  for (const p of highlightPicks) {
+    g.circle(x + p.dx + 1.5, canopyY + p.dy - 2, p.r * 0.32).fill({
+      color: hexToNumber(palette.foliage.highlight),
+      alpha: 0.85,
+    });
+  }
+
+  return g;
 }
 
 function drawNearHill(root: Container): void {
@@ -204,24 +280,51 @@ function drawGrassField(root: Container): Blade[] {
 
   const field = new Graphics();
   field.rect(0, fieldTop, VIRTUAL_WIDTH, VIRTUAL_HEIGHT - fieldTop).fill(hexToNumber(palette.grass.base));
+  // Dappled light/shade patches, built from a few soft overlapping blobs
+  // each so the field reads as mottled texture rather than stamped circles.
+  for (let i = 0; i < 16; i++) {
+    const px = rng() * VIRTUAL_WIDTH;
+    const py = fieldTop + rng() * (VIRTUAL_HEIGHT - fieldTop);
+    const tint = hexToNumber(rng() > 0.5 ? palette.grass.light : palette.grass.dark);
+    const blobCount = 3 + Math.floor(rng() * 2);
+    for (let b = 0; b < blobCount; b++) {
+      const bx = px + (rng() - 0.5) * 20;
+      const by = py + (rng() - 0.5) * 12;
+      const br = 6 + rng() * 8;
+      field.circle(bx, by, br).fill({ color: tint, alpha: 0.05 });
+    }
+  }
   layer.addChild(field);
 
-  // Scattered flowers.
-  const flowerColors = [0xd1453b, 0xe8b23d, 0xb583c9];
-  for (let i = 0; i < 26; i++) {
+  // Scattered small pixel-art flowers: petals around a contrasting center, with a soft ground shadow.
+  const flowerVariants = [
+    { petal: palette.flowers.poppyPetal, center: palette.flowers.poppyCenter },
+    { petal: palette.flowers.daisyPetal, center: palette.flowers.daisyCenter },
+    { petal: palette.flowers.violetPetal, center: palette.flowers.violetCenter },
+  ];
+  const flowers = new Graphics();
+  for (let i = 0; i < 30; i++) {
     const fx = rng() * VIRTUAL_WIDTH;
     const fy = fieldTop + 6 + rng() * (VIRTUAL_HEIGHT - fieldTop - 10);
-    const flower = new Graphics();
-    const color = flowerColors[Math.floor(rng() * flowerColors.length)];
-    flower.circle(fx, fy, 1.6).fill(color);
-    layer.addChild(flower);
+    const variant = flowerVariants[Math.floor(rng() * flowerVariants.length)];
+    const petal = hexToNumber(variant.petal);
+    const center = hexToNumber(variant.center);
+
+    flowers.circle(fx + 0.4, fy + 0.6, 1.1).fill({ color: hexToNumber(palette.foliage.shadow), alpha: 0.3 });
+    flowers.circle(fx, fy - 1, 0.9).fill(petal);
+    flowers.circle(fx, fy + 1, 0.9).fill(petal);
+    flowers.circle(fx - 1, fy, 0.9).fill(petal);
+    flowers.circle(fx + 1, fy, 0.9).fill(petal);
+    flowers.circle(fx, fy, 0.7).fill(center);
   }
+  layer.addChild(flowers);
 
   const blades: Blade[] = [];
   for (let x = 4; x < VIRTUAL_WIDTH; x += 9) {
     const y = fieldTop + rng() * (VIRTUAL_HEIGHT - fieldTop - 6);
     const blade = new Graphics() as Blade;
-    blade.rect(-1, -7, 2, 7).fill(hexToNumber(palette.grass.light));
+    blade.rect(-1, -7, 2, 4).fill(hexToNumber(palette.grass.dark));
+    blade.rect(-1, -4, 2, 4).fill(hexToNumber(palette.grass.light));
     blade.x = x;
     blade.y = y;
     blade.phase = rng() * Math.PI * 2;
