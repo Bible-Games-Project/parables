@@ -1,0 +1,31 @@
+.button {
+  position: relative;
+  width: 3.2rem;
+  height: 3.2rem;
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 80ms steps(2);
+}
+
+.button:hover {
+  transform: translateY(-1px);
+}
+
+.button:active {
+  transform: translateY(2px);
+}
+
+.button:focus-visible {
+  outline: 3px solid #e8b23d;
+  outline-offset: 3px;
+}
+
+.icon {
+  position: relative;
+  z-index: 1;
+}

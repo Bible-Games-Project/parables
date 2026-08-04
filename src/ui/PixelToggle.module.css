@@ -1,0 +1,43 @@
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1.4rem;
+}
+
+.label {
+  font-size: 0.7rem;
+  color: #f5e6c8;
+  letter-spacing: 0.03em;
+}
+
+.switch {
+  position: relative;
+  width: 4.2rem;
+  height: 1.9rem;
+  border: 3px solid #1f1108;
+  border-radius: 4px;
+  background: #3c2415;
+  cursor: pointer;
+  padding: 0;
+}
+
+.switch[data-on="true"] {
+  background: #4c7a3d;
+}
+
+.knob {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: calc(50% - 4px);
+  height: calc(100% - 4px);
+  background: #e8b23d;
+  border: 2px solid #5c3a1f;
+  border-radius: 2px;
+  transition: transform 100ms steps(3);
+}
+
+.switch[data-on="true"] .knob {
+  transform: translateX(calc(100% + 4px));
+}

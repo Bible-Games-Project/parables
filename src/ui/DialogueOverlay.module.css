@@ -1,0 +1,22 @@
+.wrap {
+  position: absolute;
+  left: 50%;
+  bottom: 2.2rem;
+  transform: translateX(-50%);
+  width: min(90%, 34rem);
+  z-index: 20;
+}
+
+.text {
+  font-size: 0.75rem;
+  line-height: 1.9;
+  color: #f5e6c8;
+  min-height: 3.6rem;
+  margin-bottom: 1rem;
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.6rem;
+}

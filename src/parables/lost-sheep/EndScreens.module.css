@@ -1,0 +1,49 @@
+.overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: fadeIn 600ms ease-out;
+}
+
+.gameOver {
+  background: rgba(5, 4, 3, 0.82);
+}
+
+.victory {
+  background: radial-gradient(circle at 50% 40%, #f7d88c 0%, #e5a15f 45%, #4a3a55 100%);
+}
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  text-align: center;
+  padding: 2.5rem 2rem;
+  max-width: 30rem;
+}
+
+.title {
+  font-size: 1.1rem;
+  color: #fff6e6;
+  text-shadow: 3px 3px 0 rgba(0, 0, 0, 0.4);
+}
+
+.verse {
+  font-size: 0.72rem;
+  line-height: 2;
+  color: #3a2a1a;
+  font-style: italic;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}

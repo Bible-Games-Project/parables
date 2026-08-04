@@ -1,0 +1,48 @@
+.button {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  border: none;
+  background: transparent;
+  padding: 0.9rem 1.6rem;
+  min-height: 3.2rem;
+  cursor: pointer;
+  font-family: "Press Start 2P", monospace;
+  font-size: 0.85rem;
+  letter-spacing: 0.03em;
+  color: var(--pixel-button-color, #f5e6c8);
+  text-shadow: 2px 2px 0 rgba(0, 0, 0, 0.45);
+  transition: transform 80ms steps(2);
+}
+
+.button:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+.button:active:not(:disabled) {
+  transform: translateY(2px);
+}
+
+.button:disabled {
+  cursor: not-allowed;
+  color: #9a9a9a;
+  text-shadow: none;
+}
+
+.button:focus-visible {
+  outline: 3px solid #e8b23d;
+  outline-offset: 3px;
+}
+
+.label {
+  position: relative;
+  z-index: 1;
+}
+
+.large {
+  min-width: 16rem;
+  font-size: 1rem;
+  padding: 1.1rem 2rem;
+}

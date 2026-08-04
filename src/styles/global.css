@@ -1,0 +1,29 @@
+:root {
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+body {
+  font-family: "Press Start 2P", monospace;
+  background: #0a0e14;
+  color: #f5e9d3;
+  image-rendering: pixelated;
+  -webkit-font-smoothing: none;
+  user-select: none;
+}
+
+button {
+  font-family: inherit;
+}

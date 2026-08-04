@@ -1,0 +1,41 @@
+.row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-bottom: 1.4rem;
+}
+
+.label {
+  font-size: 0.7rem;
+  color: #f5e6c8;
+  letter-spacing: 0.03em;
+}
+
+.track {
+  appearance: none;
+  width: 100%;
+  height: 14px;
+  background: #3c2415;
+  border: 3px solid #1f1108;
+  border-radius: 4px;
+  outline: none;
+  cursor: pointer;
+}
+
+.track::-webkit-slider-thumb {
+  appearance: none;
+  width: 18px;
+  height: 22px;
+  background: #e8b23d;
+  border: 2px solid #5c3a1f;
+  border-radius: 3px;
+  margin-top: -2px;
+}
+
+.track::-moz-range-thumb {
+  width: 18px;
+  height: 22px;
+  background: #e8b23d;
+  border: 2px solid #5c3a1f;
+  border-radius: 3px;
+}

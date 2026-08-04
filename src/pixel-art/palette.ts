@@ -1,0 +1,35 @@
+export const palette = {
+  wood: {
+    darker: "#3c2415",
+    dark: "#5c3a1f",
+    base: "#8a5a34",
+    light: "#b98a54",
+    highlight: "#e0b579",
+  },
+  woodDisabled: {
+    darker: "#2b2b2b",
+    dark: "#454545",
+    base: "#5f5f5f",
+    light: "#787878",
+    highlight: "#909090",
+  },
+  parchment: "#f5e6c8",
+  parchmentDim: "#cbb98f",
+  ink: "#3a2a1a",
+  gold: "#e8b23d",
+  goldDark: "#b8811f",
+  grass: {
+    dark: "#345228",
+    base: "#4c7a3d",
+    light: "#6fae4d",
+  },
+  sky: {
+    day: ["#bfe8ff", "#8fd3f4"],
+    dusk: ["#f7c873", "#e58a5f", "#5c4a72"],
+    night: ["#1a1f3a", "#0a0e1f"],
+  },
+  danger: "#c1443a",
+  heart: "#d1453b",
+  heartDark: "#8a241d",
+  water: "#3d7f9e",
+} as const;

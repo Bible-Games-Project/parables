@@ -74,3 +74,53 @@ the next sync; if a rule you are adding applies to every game, it belongs in
 bgp-admin at `templates/agent-docs/`, so ask before adding it.
 
 <!-- BGP-ADMIN:END -->
+
+## Project-specific notes
+
+### Stack and commands
+
+- React + TypeScript + Vite, package manager **bun**. `bun install`, `bun run dev`,
+  `bun run build` (runs `tsc -b --noCheck && vite build`, outputs to `dist/`),
+  `bun run preview`, `bun run typecheck` (`tsc -b --noEmit`, strict).
+- Game world rendering: **PixiJS v8**, mounted once via `src/engine/PixiStage.tsx`.
+  Every scene renders at a fixed virtual resolution (`src/engine/constants.ts`,
+  480x270) and the canvas is scaled up with `image-rendering: pixelated` — this is
+  what makes it read as pixel art. Author all scene coordinates in that virtual
+  space, not raw pixels.
+- State: Zustand (+ `persist` middleware to localStorage) — `src/store/`. No
+  react-router; navigation is a screen enum in `appStore`.
+- Localization: `src/locales/`, flat dot-key dictionary typed from `en.ts` (the
+  source of truth). Every other locale file does `{ ...en }` as a placeholder —
+  all 12 locales are wired end-to-end but only English has real copy so far.
+  Use the `useT()` hook, never hardcode strings.
+- No image-generation tool is available in this environment. All pixel art is
+  hand-coded: either small color-grid sprites (`src/pixel-art/pixelGrid.ts`,
+  used for icons) or procedural canvas drawing (`src/pixel-art/woodTexture.ts`
+  for the wooden UI kit, `src/parables/lost-sheep/sprites.ts` for characters via
+  layered `Graphics` primitives). It reads as "clean programmer art," not
+  hand-painted — swapping in real assets later means changing these renderers,
+  not the callers, since entities only hold a `Container` reference.
+- Playwright is preinstalled but not as a project dependency — it's only
+  reachable via the global install at `/opt/node22/lib/node_modules/playwright`
+  (import that path directly, or set `NODE_PATH`), with Chromium at
+  `/opt/pw-browsers/chromium`. Don't add `playwright` to package.json for this.
+
+### Traps already hit
+
+- A PixiJS alpha/sprite mask sampled **outside its own texture bounds reads as
+  fully transparent**, not as the texture's edge color. The night-lighting
+  vignette (`src/engine/nightOverlay.ts`) originally sized the mask sprite
+  tightly around the light radius, which made the "darkness" invisible
+  everywhere outside that small circle instead of covering the screen. Fixed by
+  drawing one big canvas texture (well larger than the viewport) with the light
+  hole punched in the middle and using it directly as the visible darkness
+  sprite — no separate `.mask` needed. If you need a "hole in an overlay that
+  follows a point" effect anywhere else, reuse this pattern, not `.mask`.
+- When drawing a fence/grid-like prop with `Graphics`, looping posts across the
+  *entire* width/height at every spacing step (instead of only at the two edge
+  lines) draws a full interior lattice, not a perimeter fence. Keep post loops
+  scoped to just the boundary.
+- `ParableRow`/menu locking, `progressStore` (unlocked/completed ids) and
+  `parables/registry.ts` are the whole "add a new parable" surface — a second
+  parable should only need a new `src/parables/<id>/` folder plus a registry
+  entry, no engine changes.

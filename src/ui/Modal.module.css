@@ -1,0 +1,52 @@
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(10, 8, 5, 0.65);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+  animation: fadeIn 150ms ease-out;
+}
+
+.dialog {
+  width: min(90vw, 28rem);
+  max-height: 85vh;
+  overflow-y: auto;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1.1rem;
+}
+
+.title {
+  font-size: 0.95rem;
+  color: #f5e6c8;
+  text-shadow: 2px 2px 0 rgba(0, 0, 0, 0.45);
+}
+
+.closeButton {
+  background: transparent;
+  border: none;
+  color: #f5e6c8;
+  font-family: "Press Start 2P", monospace;
+  font-size: 0.9rem;
+  cursor: pointer;
+  padding: 0.3rem 0.6rem;
+}
+
+.closeButton:hover {
+  color: #e8b23d;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}

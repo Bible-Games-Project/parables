@@ -1,0 +1,32 @@
+.shell {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow-y: auto;
+  background: linear-gradient(180deg, #f7c873 0%, #e58a5f 45%, #5c4a72 100%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 5.5rem 1.5rem 3rem;
+}
+
+.backButton {
+  position: absolute;
+  top: 1.2rem;
+  left: 1.2rem;
+}
+
+.title {
+  font-size: clamp(1.1rem, 3vw, 1.6rem);
+  color: #fff6e6;
+  text-shadow:
+    2px 2px 0 #5c3a1f,
+    4px 4px 0 rgba(0, 0, 0, 0.35);
+  margin-bottom: 2rem;
+  text-align: center;
+}
+
+.content {
+  width: 100%;
+  max-width: 48rem;
+}
