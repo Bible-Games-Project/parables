@@ -3,6 +3,7 @@ import { VIRTUAL_HEIGHT, VIRTUAL_WIDTH } from "@/engine/constants";
 import { hexToNumber, lerpColor } from "@/pixel-art/color";
 import { createRng } from "@/pixel-art/prng";
 import { palette } from "@/pixel-art/palette";
+import { buildTree } from "@/pixel-art/foliage";
 
 const HORIZON = 168;
 
@@ -202,60 +203,6 @@ function drawTrees(root: Container): void {
     layer.addChild(buildTree(x, baseY, rng));
   }
   root.addChild(layer);
-}
-
-/**
- * One handcrafted tree: a tapered two-tone trunk with a lit edge, and a
- * canopy built from a jittered ring of overlapping puffs rendered in four
- * passes (shadow silhouette, base, sun-side mid-tone, small highlight dabs)
- * so it reads as a rounded, organic mass instead of stacked circles.
- */
-function buildTree(x: number, baseY: number, rng: () => number): Graphics {
-  const g = new Graphics();
-  const trunkHeight = 12 + rng() * 4;
-  const trunkTopY = baseY - trunkHeight;
-
-  g.poly([x - 4, baseY, x - 1.5, trunkTopY + 3, x + 1.5, trunkTopY + 3, x + 4, baseY]).fill(
-    hexToNumber(palette.wood.dark),
-  );
-  g.rect(x - 2.2, trunkTopY, 2.4, trunkHeight).fill(hexToNumber(palette.wood.darker));
-  g.rect(x + 0.2, trunkTopY, 2.2, trunkHeight).fill(hexToNumber(palette.wood.dark));
-  g.rect(x + 1.1, trunkTopY, 0.9, trunkHeight * 0.75).fill(hexToNumber(palette.wood.light));
-
-  const canopyY = trunkTopY + 3;
-  const puffs: { dx: number; dy: number; r: number }[] = [];
-  const ringCount = 7 + Math.floor(rng() * 3);
-  for (let i = 0; i < ringCount; i++) {
-    const angle = (i / ringCount) * Math.PI * 2 + rng() * 0.5;
-    const dist = 4 + rng() * 6.5;
-    puffs.push({
-      dx: Math.cos(angle) * dist,
-      dy: Math.sin(angle) * dist * 0.62 - 4,
-      r: 5 + rng() * 3.6,
-    });
-  }
-  puffs.push({ dx: 0, dy: -8, r: 8.5 + rng() * 2 });
-
-  for (const p of puffs) {
-    g.circle(x + p.dx - 1, canopyY + p.dy + 2.2, p.r * 0.95).fill(hexToNumber(palette.foliage.shadow));
-  }
-  for (const p of puffs) {
-    g.circle(x + p.dx, canopyY + p.dy, p.r * 0.86).fill(hexToNumber(palette.foliage.base));
-  }
-  for (const p of puffs) {
-    if (p.dx > -2.5) {
-      g.circle(x + p.dx + 1, canopyY + p.dy - 1.2, p.r * 0.52).fill(hexToNumber(palette.foliage.mid));
-    }
-  }
-  const highlightPicks = puffs.filter((p) => p.dx > 1 && p.dy < -1).slice(0, 3);
-  for (const p of highlightPicks) {
-    g.circle(x + p.dx + 1.5, canopyY + p.dy - 2, p.r * 0.32).fill({
-      color: hexToNumber(palette.foliage.highlight),
-      alpha: 0.85,
-    });
-  }
-
-  return g;
 }
 
 function drawNearHill(root: Container): void {

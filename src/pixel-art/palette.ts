@@ -59,4 +59,33 @@ export const palette = {
   heart: "#d1453b",
   heartDark: "#8a241d",
   water: "#3d7f9e",
+  skin: {
+    shadow: "#b17f52",
+    base: "#d9a874",
+    highlight: "#f0c68f",
+  },
+  hair: {
+    shadow: "#2c1c14",
+    base: "#4a2f22",
+    highlight: "#6b452f",
+  },
+  /** A dusty teal for the shepherd's robe — the one cool, saturated accent against the warm world, so the hero silhouette pops. */
+  robe: {
+    shadow: "#274741",
+    base: "#3d6b63",
+    highlight: "#5c9689",
+  },
+  wool: {
+    shadow: "#cbb98f",
+    base: "#f2e9d6",
+    highlight: "#fff8ea",
+  },
+  /** Cool, dim fur — the one place the palette deliberately breaks from the warm story, coding the wolves as a threat. */
+  fur: {
+    shadow: "#2b2a35",
+    base: "#4c4a5c",
+    light: "#6b6980",
+    belly: "#7d7b90",
+    eye: "#ffcf6b",
+  },
 } as const;

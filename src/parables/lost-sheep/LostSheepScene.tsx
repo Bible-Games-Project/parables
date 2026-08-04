@@ -4,13 +4,23 @@ import { PixiStage } from "@/engine/PixiStage";
 import { KeyboardController } from "@/engine/input";
 import { Camera } from "@/engine/camera";
 import { createNightOverlay, type NightOverlay } from "@/engine/nightOverlay";
-import { circlesOverlap, distance } from "@/engine/collision";
+import { circleOverlapsRect, circlesOverlap, distance, resolveCircleVsRect, type CircleObstacle } from "@/engine/collision";
 import { pickNearestTarget } from "@/engine/chaseAI";
 import { createMissionMachine } from "@/engine/missionMachine";
 import { Shepherd, LostSheep, Wolf } from "@/parables/lost-sheep/entities";
-import { createFenceOutline, createFlockCluster } from "@/parables/lost-sheep/sprites";
-import { buildTerrain } from "@/parables/lost-sheep/terrain";
-import { FLOCK_COUNT, PEN, PEN_CENTER, SHEPHERD_START, WORLD_HEIGHT, WORLD_WIDTH } from "@/parables/lost-sheep/map";
+import { createFenceOutline } from "@/parables/lost-sheep/sprites";
+import { Flock } from "@/parables/lost-sheep/flock";
+import { buildTerrain, type TerrainObstacle } from "@/parables/lost-sheep/terrain";
+import {
+  FLOCK_COUNT,
+  GATE,
+  PEN,
+  PEN_CENTER,
+  SHEPHERD_START,
+  WORLD_HEIGHT,
+  WORLD_WIDTH,
+  pickLostSheepSpawn,
+} from "@/parables/lost-sheep/map";
 import type { LostSheepMissionState } from "@/parables/lost-sheep/missionState";
 import { LostSheepHud } from "@/parables/lost-sheep/LostSheepHud";
 import { GameOverOverlay, VictoryOverlay } from "@/parables/lost-sheep/EndScreens";
@@ -35,6 +45,8 @@ interface RuntimeRefs {
   shepherd: Shepherd;
   sheep: LostSheep;
   wolves: Wolf[];
+  flock: Flock;
+  terrainObstacles: TerrainObstacle[];
   input: KeyboardController;
   camera: Camera;
   night: NightOverlay;
@@ -61,18 +73,17 @@ export function LostSheepScene({ onExit, onRetry }: LostSheepSceneProps) {
   const onReady = useCallback((app: Application) => {
     const world = new Container();
     app.stage.addChild(world);
-    buildTerrain(world);
+    const terrainObstacles = buildTerrain(world);
 
-    const fence = createFenceOutline(PEN.width, PEN.height);
+    const fence = createFenceOutline(PEN.width, PEN.height, { x: GATE.x - PEN.x, width: GATE.width });
     fence.position.set(PEN.x, PEN.y);
+
+    const flock = new Flock(FLOCK_COUNT);
+    world.addChild(flock.container);
     world.addChild(fence);
 
-    const flock = createFlockCluster(PEN.width, PEN.height, FLOCK_COUNT);
-    flock.position.set(PEN.x, PEN.y);
-    world.addChild(flock);
-
     const shepherd = new Shepherd(SHEPHERD_START);
-    const sheep = new LostSheep({ x: WORLD_WIDTH * 0.78, y: WORLD_HEIGHT * 0.22 });
+    const sheep = new LostSheep(pickLostSheepSpawn());
     world.addChild(sheep.sprite.container);
     world.addChild(shepherd.sprite.container);
 
@@ -87,6 +98,8 @@ export function LostSheepScene({ onExit, onRetry }: LostSheepSceneProps) {
       shepherd,
       sheep,
       wolves: [],
+      flock,
+      terrainObstacles,
       input,
       camera,
       night,
@@ -116,7 +129,9 @@ export function LostSheepScene({ onExit, onRetry }: LostSheepSceneProps) {
       const playing = state === "search" || state === "escort";
 
       const direction = state === "intro" || state === "victory" || state === "gameOver" ? { x: 0, y: 0 } : current.input.getDirection();
-      current.shepherd.update(dt, direction);
+      const obstacles: CircleObstacle[] = current.terrainObstacles.concat(current.flock.asObstacles());
+      current.shepherd.update(dt, direction, obstacles);
+      current.flock.update(dt);
 
       if (state !== "intro") {
         current.sheep.update(dt, current.shepherd.position);
@@ -250,8 +265,17 @@ export function LostSheepScene({ onExit, onRetry }: LostSheepSceneProps) {
 function spawnWolf(runtime: RuntimeRefs): void {
   const angle = Math.random() * Math.PI * 2;
   const spawnDistance = 180 + Math.random() * 60;
-  const x = Math.max(20, Math.min(WORLD_WIDTH - 20, runtime.shepherd.position.x + Math.cos(angle) * spawnDistance));
-  const y = Math.max(20, Math.min(WORLD_HEIGHT - 20, runtime.shepherd.position.y + Math.sin(angle) * spawnDistance));
+  let x = Math.max(20, Math.min(WORLD_WIDTH - 20, runtime.shepherd.position.x + Math.cos(angle) * spawnDistance));
+  let y = Math.max(20, Math.min(WORLD_HEIGHT - 20, runtime.shepherd.position.y + Math.sin(angle) * spawnDistance));
+
+  // Wolves may never spawn inside the pen — push out to the nearest edge if the roll landed there.
+  const spawnRadius = 8;
+  if (circleOverlapsRect({ x, y }, spawnRadius, PEN)) {
+    const pushed = resolveCircleVsRect({ x, y }, spawnRadius, PEN);
+    x = pushed.x;
+    y = pushed.y;
+  }
+
   const wolf = new Wolf({ x, y });
   runtime.wolves.push(wolf);
   runtime.world.addChild(wolf.sprite.container);

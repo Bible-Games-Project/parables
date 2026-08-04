@@ -1,16 +1,32 @@
 import type { Vector2 } from "@/engine/input";
-import { clampToBounds, distance, lerp, normalize } from "@/engine/collision";
+import {
+  circleOverlapsRect,
+  clampToBounds,
+  distance,
+  lerp,
+  normalize,
+  resolveCircleVsCircle,
+  resolveCircleVsRect,
+  type CircleObstacle,
+  type Rect,
+} from "@/engine/collision";
 import { steerToward } from "@/engine/chaseAI";
 import { createRng } from "@/pixel-art/prng";
-import { createSheepSprite, createShepherdSprite, createWolfSprite, type CharacterSprite } from "@/parables/lost-sheep/sprites";
-import { WORLD_HEIGHT, WORLD_WIDTH } from "@/parables/lost-sheep/map";
+import {
+  createSheepSprite,
+  createShepherdSprite,
+  createWolfSprite,
+  type SheepVisual,
+  type ShepherdVisual,
+  type WolfVisual,
+} from "@/parables/lost-sheep/sprites";
+import { PEN, PEN_WALLS, WORLD_HEIGHT, WORLD_WIDTH } from "@/parables/lost-sheep/map";
 
 const WORLD_BOUNDS = { width: WORLD_WIDTH, height: WORLD_HEIGHT };
 
-function applyFacing(sprite: CharacterSprite, velocity: Vector2, bobPhase: number, moving: boolean): void {
-  if (velocity.x > 0.05) sprite.body.scale.x = 1;
-  else if (velocity.x < -0.05) sprite.body.scale.x = -1;
-  sprite.body.y = moving ? Math.sin(bobPhase) * 1.6 : 0;
+function applyFacing(body: { scale: { x: number } }, velocityX: number): void {
+  if (velocityX > 0.05) body.scale.x = 1;
+  else if (velocityX < -0.05) body.scale.x = -1;
 }
 
 export class Shepherd {
@@ -19,9 +35,11 @@ export class Shepherd {
   speed = 100;
   maxHp = 100;
   hp = 100;
-  sprite: CharacterSprite;
+  sprite: ShepherdVisual;
 
-  private bobPhase = 0;
+  private walkPhase = 0;
+  private idlePhase = 0;
+  private walkBlend = 0;
   private staffCooldown = 0;
   staffActiveTime = 0;
   readonly staffRange = 26;
@@ -34,16 +52,39 @@ export class Shepherd {
     this.sprite.container.position.set(start.x, start.y);
   }
 
-  update(dt: number, direction: Vector2): void {
+  update(dt: number, direction: Vector2, circleObstacles: CircleObstacle[]): void {
     const moving = direction.x !== 0 || direction.y !== 0;
     if (moving) {
       this.position.x += direction.x * this.speed * dt;
       this.position.y += direction.y * this.speed * dt;
+
+      for (const wall of PEN_WALLS) {
+        this.position = resolveCircleVsRect(this.position, this.radius, wall);
+      }
+      for (const obstacle of circleObstacles) {
+        this.position = resolveCircleVsCircle(this.position, this.radius, obstacle, obstacle.radius);
+      }
       this.position = clampToBounds(this.position, WORLD_BOUNDS, this.radius);
-      this.bobPhase += dt * 10;
     }
     this.sprite.container.position.set(this.position.x, this.position.y);
-    applyFacing(this.sprite, direction, this.bobPhase, moving);
+    applyFacing(this.sprite.body, direction.x);
+
+    const target = moving ? 1 : 0;
+    this.walkBlend += (target - this.walkBlend) * Math.min(1, dt * 6);
+    this.walkPhase += dt * 9;
+    this.idlePhase += dt;
+
+    const legAmp = 0.55 * this.walkBlend;
+    this.sprite.leftLeg.rotation = Math.sin(this.walkPhase) * legAmp;
+    this.sprite.rightLeg.rotation = -Math.sin(this.walkPhase) * legAmp;
+    this.sprite.frontArm.rotation = -Math.sin(this.walkPhase) * 0.4 * this.walkBlend;
+    const staffWalk = Math.sin(this.walkPhase) * 0.16 * this.walkBlend;
+    const staffIdle = Math.sin(this.idlePhase * 1.3) * 0.06 * (1 - this.walkBlend);
+    this.sprite.staffArm.rotation = staffWalk + staffIdle;
+    const bodyBobWalk = Math.sin(this.walkPhase * 2) * 1.1 * this.walkBlend;
+    const bodyBobIdle = Math.sin(this.idlePhase * 2) * 0.4 * (1 - this.walkBlend);
+    this.sprite.body.y = bodyBobWalk + bodyBobIdle;
+    this.sprite.head.rotation = Math.sin(this.idlePhase * 1.7) * 0.05 * (1 - this.walkBlend);
 
     if (this.staffCooldown > 0) this.staffCooldown -= dt;
     if (this.staffActiveTime > 0) this.staffActiveTime -= dt;
@@ -67,21 +108,26 @@ export class Shepherd {
 
 export type SheepBehavior = "wandering" | "following";
 
+const SHEEP_FRONT_LEG_BASE_Y = 2.6;
+const SHEEP_BACK_LEG_BASE_Y = 2.8;
+
 export class LostSheep {
   position: Vector2;
   radius = 6;
   maxHp = 100;
   hp = 100;
   behavior: SheepBehavior = "wandering";
-  sprite: CharacterSprite;
+  sprite: SheepVisual;
 
   private wanderTarget: Vector2;
   private wanderSpeed = 34;
   private followSpeed = 92;
   private followDistance = 22;
-  private rng = createRng(9001);
+  private rng = createRng(Date.now() & 0xffffffff);
   private retargetIn = 0;
-  private bobPhase = 0;
+  private walkPhase = 0;
+  private idlePhase = 0;
+  private walkBlend = 0;
 
   constructor(start: Vector2) {
     this.position = { ...start };
@@ -121,8 +167,17 @@ export class LostSheep {
     this.position = clampToBounds(this.position, WORLD_BOUNDS, this.radius);
     this.sprite.container.position.set(this.position.x, this.position.y);
     const moving = Math.hypot(velocity.x, velocity.y) > 0.01;
-    if (moving) this.bobPhase += dt * 9;
-    applyFacing(this.sprite, velocity, this.bobPhase, moving);
+    applyFacing(this.sprite.body, velocity.x);
+
+    const target = moving ? 1 : 0;
+    this.walkBlend += (target - this.walkBlend) * Math.min(1, dt * 6);
+    this.walkPhase += dt * 10;
+    this.idlePhase += dt;
+
+    const lift = 1.3 * this.walkBlend;
+    this.sprite.frontLeg.y = SHEEP_FRONT_LEG_BASE_Y - Math.max(0, Math.sin(this.walkPhase)) * lift;
+    this.sprite.backLeg.y = SHEEP_BACK_LEG_BASE_Y - Math.max(0, Math.sin(this.walkPhase + Math.PI)) * lift;
+    this.sprite.head.rotation = Math.sin(this.idlePhase * 1.5) * 0.08 * (1 - this.walkBlend);
   }
 
   takeDamage(amount: number): void {
@@ -130,17 +185,24 @@ export class LostSheep {
   }
 }
 
+const WOLF_FRONT_LEG_BASE_Y = -3.4;
+const WOLF_BACK_LEG_BASE_Y = -3.2;
+
 export class Wolf {
   position: Vector2;
   radius = 8;
   speed = 62;
   hp = 30;
-  sprite: CharacterSprite;
+  sprite: WolfVisual;
 
   private stunTimer = 0;
   private knockback: Vector2 = { x: 0, y: 0 };
   private damageCooldown = 0;
-  private bobPhase = 0;
+  private walkPhase = 0;
+  private idlePhase = 0;
+  private walkBlend = 0;
+  private attackFlash = 0;
+  private facing = 1;
 
   constructor(start: Vector2) {
     this.position = { ...start };
@@ -164,10 +226,12 @@ export class Wolf {
 
   markDamaged(cooldown = 0.8): void {
     this.damageCooldown = cooldown;
+    this.attackFlash = 0.25;
   }
 
   update(dt: number, chaseTarget: Vector2 | undefined): void {
     if (this.damageCooldown > 0) this.damageCooldown -= dt;
+    if (this.attackFlash > 0) this.attackFlash -= dt;
     let velocity: Vector2 = { x: 0, y: 0 };
 
     if (this.stunTimer > 0) {
@@ -181,11 +245,36 @@ export class Wolf {
       velocity = { x: this.position.x - before.x, y: this.position.y - before.y };
     }
 
+    // Wolves may surround the pen but can never cross the fence into it.
+    if (circleOverlapsRect(this.position, this.radius, PEN as Rect)) {
+      this.position = resolveCircleVsRect(this.position, this.radius, PEN as Rect);
+    }
+
     this.position = clampToBounds(this.position, WORLD_BOUNDS, this.radius);
     this.sprite.container.position.set(this.position.x, this.position.y);
-    const moving = Math.hypot(velocity.x, velocity.y) > 0.01;
-    if (moving) this.bobPhase += dt * 11;
-    applyFacing(this.sprite, velocity, this.bobPhase, moving && this.stunTimer <= 0);
+    const moving = Math.hypot(velocity.x, velocity.y) > 0.01 && this.stunTimer <= 0;
+    if (velocity.x > 0.05) this.facing = 1;
+    else if (velocity.x < -0.05) this.facing = -1;
+
+    const target = moving ? 1 : 0;
+    this.walkBlend += (target - this.walkBlend) * Math.min(1, dt * 8);
+    this.walkPhase += dt * 15;
+    this.idlePhase += dt;
+
+    const legAmp = 0.7 * this.walkBlend;
+    this.sprite.frontLeg.rotation = Math.sin(this.walkPhase) * legAmp;
+    this.sprite.backLeg.rotation = -Math.sin(this.walkPhase) * legAmp;
+    this.sprite.frontLeg.y = WOLF_FRONT_LEG_BASE_Y;
+    this.sprite.backLeg.y = WOLF_BACK_LEG_BASE_Y;
+
+    const tailWalk = Math.sin(this.walkPhase * 0.9) * 0.35 * this.walkBlend;
+    const tailIdle = Math.sin(this.idlePhase * 1.6) * 0.15 * (1 - this.walkBlend);
+    this.sprite.tail.rotation = tailWalk + tailIdle;
+
+    const breathe = Math.sin(this.idlePhase * 2.2) * 0.02 * (1 - this.walkBlend);
+    const lunge = this.attackFlash > 0 ? 0.12 : 0;
+    this.sprite.body.scale.set(this.facing * (1 + breathe + lunge), 1 - breathe * 0.5);
+
     this.sprite.container.alpha = this.stunTimer > 0 ? 0.55 : 1;
   }
 }
