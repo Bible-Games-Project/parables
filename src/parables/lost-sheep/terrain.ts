@@ -114,6 +114,7 @@ export function buildTerrain(world: Container): TerrainObstacle[] {
       obstacles.push({ x, y: y - 6, radius: 4 });
     } else if (roll < 0.75) {
       buildBush(x, y, rng, bushBatch);
+      obstacles.push({ x, y, radius: 3.5 });
     } else {
       const rockScale = 0.7 + rng() * 1.1;
       buildRock(x, y, rng, rockScale, rockBatch);

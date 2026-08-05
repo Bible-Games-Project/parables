@@ -11,6 +11,7 @@ import { palette } from "@/pixel-art/palette";
 export interface ShepherdVisual {
   container: Container;
   body: Container;
+  torso: Container;
   head: Container;
   leftLeg: Container;
   rightLeg: Container;
@@ -21,16 +22,30 @@ export interface ShepherdVisual {
 function buildShepherdHead(): Container {
   const head = new Container();
   const g = new Graphics();
-  g.circle(0, 0, 4.6).fill(hexToNumber(palette.skin.base));
-  g.circle(1.6, 0.6, 3.2).fill({ color: hexToNumber(palette.skin.shadow), alpha: 0.35 });
-  g.ellipse(0, -2.8, 4.9, 3.1).fill(hexToNumber(palette.hair.base));
-  g.ellipse(0, -3.6, 4.9, 2).fill({ color: hexToNumber(palette.hair.shadow), alpha: 0.5 });
-  g.ellipse(-4.1, -1, 1.3, 1.9).fill(hexToNumber(palette.hair.base));
-  g.ellipse(4.1, -1, 1.3, 1.9).fill(hexToNumber(palette.hair.base));
-  g.poly([-3.2, 1, 3.2, 1, 2, 4.6, 0, 5.6, -2, 4.6]).fill(hexToNumber(palette.hair.base));
-  g.poly([-1, 1.3, 1, 1.3, 0.6, 4, -0.6, 4]).fill({ color: hexToNumber(palette.hair.shadow), alpha: 0.6 });
-  g.circle(-1.6, -0.4, 0.5).fill(hexToNumber(palette.ink));
-  g.circle(1.6, -0.4, 0.5).fill(hexToNumber(palette.ink));
+  g.circle(0, 0, 5.3).fill(hexToNumber(palette.skin.base));
+  g.circle(1.8, 0.7, 3.6).fill({ color: hexToNumber(palette.skin.shadow), alpha: 0.32 });
+  // Ears.
+  g.circle(-5, 0.6, 1.1).fill(hexToNumber(palette.skin.base));
+  g.circle(5, 0.6, 1.1).fill(hexToNumber(palette.skin.base));
+  // Hair — fuller, side-swept, with a highlight streak for volume.
+  g.ellipse(0, -3.1, 5.6, 3.5).fill(hexToNumber(palette.hair.base));
+  g.ellipse(0, -4, 5.6, 2.2).fill({ color: hexToNumber(palette.hair.shadow), alpha: 0.5 });
+  g.ellipse(-1.4, -4.4, 2.4, 1.1).fill({ color: hexToNumber(palette.hair.highlight), alpha: 0.7 });
+  g.ellipse(-4.7, -1.1, 1.5, 2.2).fill(hexToNumber(palette.hair.base));
+  g.ellipse(4.7, -1.1, 1.5, 2.2).fill(hexToNumber(palette.hair.base));
+  // Eyebrows.
+  g.rect(-3, -1.9, 2.2, 0.7).fill(hexToNumber(palette.hair.shadow));
+  g.rect(0.8, -1.9, 2.2, 0.7).fill(hexToNumber(palette.hair.shadow));
+  // Eyes.
+  g.circle(-1.8, -0.4, 0.6).fill(hexToNumber(palette.ink));
+  g.circle(1.8, -0.4, 0.6).fill(hexToNumber(palette.ink));
+  g.circle(-1.6, -0.6, 0.2).fill({ color: 0xffffff, alpha: 0.85 });
+  g.circle(2, -0.6, 0.2).fill({ color: 0xffffff, alpha: 0.85 });
+  // Nose hint + beard.
+  g.rect(-0.4, 0.4, 0.8, 1.4).fill({ color: hexToNumber(palette.skin.shadow), alpha: 0.5 });
+  g.poly([-3.6, 1.1, 3.6, 1.1, 2.2, 5.2, 0, 6.4, -2.2, 5.2]).fill(hexToNumber(palette.hair.base));
+  g.poly([-1.1, 1.5, 1.1, 1.5, 0.7, 4.5, -0.7, 4.5]).fill({ color: hexToNumber(palette.hair.shadow), alpha: 0.6 });
+  g.poly([-2.4, 1.4, -0.6, 1.4, -1, 3.6]).fill({ color: hexToNumber(palette.hair.highlight), alpha: 0.35 });
   head.addChild(g);
   return head;
 }
@@ -54,10 +69,10 @@ function buildStaff(): Container {
 function buildShepherdLeg(): Container {
   const leg = new Container();
   const g = new Graphics();
-  g.rect(-1.3, 3, 2.6, 4.5).fill(hexToNumber(palette.skin.base));
-  g.rect(-1.3, 3, 1.3, 4.5).fill({ color: hexToNumber(palette.skin.shadow), alpha: 0.5 });
-  g.rect(-1.5, 7, 3, 1.3).fill(hexToNumber(palette.hair.base));
-  g.rect(-1.5, 8.3, 3, 1.1).fill(hexToNumber(palette.skin.highlight));
+  g.rect(-1.5, 3.4, 3, 5.2).fill(hexToNumber(palette.skin.base));
+  g.rect(-1.5, 3.4, 1.5, 5.2).fill({ color: hexToNumber(palette.skin.shadow), alpha: 0.5 });
+  g.rect(-1.7, 8, 3.4, 1.5).fill(hexToNumber(palette.hair.base));
+  g.rect(-1.7, 9.5, 3.4, 1.2).fill(hexToNumber(palette.skin.highlight));
   leg.addChild(g);
   return leg;
 }
@@ -65,50 +80,72 @@ function buildShepherdLeg(): Container {
 function buildShepherdArm(withSleeveTrim: boolean): Container {
   const arm = new Container();
   const g = new Graphics();
-  g.rect(-1.2, 0, 2.4, 4.6).fill(hexToNumber(palette.robe.base));
-  g.rect(-1.2, 0, 1.2, 4.6).fill(hexToNumber(palette.robe.shadow));
+  g.rect(-1.4, 0, 2.8, 5.3).fill(hexToNumber(palette.robe.base));
+  g.rect(-1.4, 0, 1.4, 5.3).fill(hexToNumber(palette.robe.shadow));
   if (withSleeveTrim) {
-    g.rect(-1.3, 3.6, 2.6, 0.8).fill({ color: hexToNumber(palette.gold), alpha: 0.8 });
+    g.rect(-1.5, 4.1, 3, 0.9).fill({ color: hexToNumber(palette.gold), alpha: 0.8 });
   }
-  g.circle(0, 5.3, 1.3).fill(hexToNumber(palette.skin.base));
+  g.circle(0, 6.1, 1.5).fill(hexToNumber(palette.skin.base));
   arm.addChild(g);
   return arm;
+}
+
+/** The robe and its draped mantle, grouped so idle breathing can gently scale the torso without touching the facing flip on `body`. */
+function buildShepherdTorso(): Container {
+  const torso = new Container();
+
+  const robe = new Graphics();
+  robe.poly([-5.2, -15, 5.2, -15, 7, -3.5, -7, -3.5]).fill(hexToNumber(palette.robe.base));
+  robe.poly([-5.2, -15, -1.2, -15, -2.2, -3.5, -7, -3.5]).fill(hexToNumber(palette.robe.shadow));
+  robe.poly([2.4, -15, 5.2, -15, 7, -3.5, 3.4, -3.5]).fill({ color: hexToNumber(palette.robe.highlight), alpha: 0.5 });
+  robe.rect(-1, -12.6, 0.6, 8.6).fill({ color: hexToNumber(palette.robe.shadow), alpha: 0.55 });
+  robe.rect(1.6, -11.7, 0.6, 7.4).fill({ color: hexToNumber(palette.robe.shadow), alpha: 0.45 });
+  robe.rect(-6, -8.9, 12, 1.7).fill(hexToNumber(palette.gold));
+  robe.rect(-6, -8.9, 12, 0.6).fill({ color: 0xfff0c0, alpha: 0.55 });
+
+  // Mantle: a rustier wrap over both shoulders, layered on top of the robe
+  // so the silhouette immediately reads as shepherd's clothing.
+  const mantle = new Graphics();
+  mantle.poly([-6.3, -16, -1.8, -15.6, -3, -6.5, -6.8, -7.8]).fill(hexToNumber(palette.mantle.base));
+  mantle.poly([-6.3, -16, -4.4, -15.8, -4.9, -10, -6.8, -10.6]).fill({
+    color: hexToNumber(palette.mantle.shadow),
+    alpha: 0.6,
+  });
+  mantle.poly([4.6, -16, 6.9, -15, 5.7, -9, 3.4, -9.4]).fill(hexToNumber(palette.mantle.base));
+  mantle.poly([4.6, -16, 6, -15.3, 5.6, -12, 4, -12]).fill({ color: hexToNumber(palette.mantle.highlight), alpha: 0.4 });
+  mantle.circle(-5.4, -15.4, 1.2).fill(hexToNumber(palette.gold));
+
+  torso.addChild(robe, mantle);
+  return torso;
 }
 
 export function createShepherdSprite(): ShepherdVisual {
   const container = new Container();
   const body = new Container();
 
-  const robe = new Graphics();
-  robe.poly([-4.5, -13, 4.5, -13, 6, -3, -6, -3]).fill(hexToNumber(palette.robe.base));
-  robe.poly([-4.5, -13, -1, -13, -2, -3, -6, -3]).fill(hexToNumber(palette.robe.shadow));
-  robe.poly([2, -13, 4.5, -13, 6, -3, 3, -3]).fill({ color: hexToNumber(palette.robe.highlight), alpha: 0.55 });
-  robe.rect(-0.9, -11, 0.5, 7.5).fill({ color: hexToNumber(palette.robe.shadow), alpha: 0.6 });
-  robe.rect(1.4, -10.2, 0.5, 6.4).fill({ color: hexToNumber(palette.robe.shadow), alpha: 0.5 });
-  robe.rect(-5.2, -7.8, 10.4, 1.5).fill(hexToNumber(palette.gold));
-  robe.rect(-5.2, -7.8, 10.4, 0.5).fill({ color: 0xfff0c0, alpha: 0.55 });
+  const torso = buildShepherdTorso();
 
   const leftLeg = buildShepherdLeg();
-  leftLeg.position.set(-2.6, -3);
+  leftLeg.position.set(-3, -3.5);
   const rightLeg = buildShepherdLeg();
-  rightLeg.position.set(2.6, -3);
+  rightLeg.position.set(3, -3.5);
 
   const frontArm = buildShepherdArm(false);
-  frontArm.position.set(-5.2, -12.2);
+  frontArm.position.set(-6, -14);
 
   const staffArm = buildShepherdArm(true);
-  staffArm.position.set(5.2, -12.2);
+  staffArm.position.set(6, -14);
   const staff = buildStaff();
-  staff.position.set(0, 5.3);
+  staff.position.set(0, 6.1);
   staffArm.addChild(staff);
 
   const head = buildShepherdHead();
-  head.position.set(0, -17.4);
+  head.position.set(0, -20);
 
-  body.addChild(leftLeg, rightLeg, robe, frontArm, staffArm, head);
+  body.addChild(leftLeg, rightLeg, torso, frontArm, staffArm, head);
   container.addChild(body);
 
-  return { container, body, head, leftLeg, rightLeg, frontArm, staffArm };
+  return { container, body, torso, head, leftLeg, rightLeg, frontArm, staffArm };
 }
 
 // ---------------------------------------------------------------------------
@@ -129,6 +166,9 @@ export function createSheepSprite(scale = 1): SheepVisual {
   const container = new Container();
   const body = new Container();
 
+  const shadow = new Graphics();
+  shadow.ellipse(0.5, 4.6, 5.4, 1.8).fill({ color: 0x0a0603, alpha: 0.28 });
+
   const woolPuffs = [
     { dx: -4.2, dy: 0.4, r: 3.6 },
     { dx: -1.2, dy: -1.6, r: 4.4 },
@@ -147,21 +187,26 @@ export function createSheepSprite(scale = 1): SheepVisual {
     wool.circle(p.dx + 0.5, p.dy - 0.8, p.r * 0.45).fill({ color: hexToNumber(palette.wool.highlight), alpha: 0.85 });
   }
 
+  // Legs pivot at the hip (local 0,0) and extend straight down, so a walk
+  // cycle can rotate them like a pendulum — always fully visible below the
+  // wool — instead of lifting them up into hiding under it.
   const frontLeg = new Container();
   {
     const g = new Graphics();
     g.rect(-1, 0, 2, 4.2).fill(hexToNumber(palette.ink));
+    g.rect(-1, 3, 2, 1.2).fill(hexToNumber(palette.hair.shadow));
     frontLeg.addChild(g);
   }
-  frontLeg.position.set(-2, 2.6);
+  frontLeg.position.set(-2, 2);
 
   const backLeg = new Container();
   {
     const g = new Graphics();
     g.rect(-1, 0, 2, 4.2).fill(hexToNumber(palette.ink));
+    g.rect(-1, 3, 2, 1.2).fill(hexToNumber(palette.hair.shadow));
     backLeg.addChild(g);
   }
-  backLeg.position.set(3, 2.8);
+  backLeg.position.set(3, 2.2);
 
   const head = new Container();
   {
@@ -176,7 +221,8 @@ export function createSheepSprite(scale = 1): SheepVisual {
   }
   head.position.set(6.4, -1.4);
 
-  body.addChild(frontLeg, backLeg, wool, head);
+  // Legs are added after the wool so they always render on top of it, fully readable while walking.
+  body.addChild(shadow, wool, frontLeg, backLeg, head);
   body.scale.set(scale);
   container.addChild(body);
 

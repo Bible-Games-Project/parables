@@ -69,11 +69,17 @@ export const palette = {
     base: "#4a2f22",
     highlight: "#6b452f",
   },
-  /** A dusty teal for the shepherd's robe — the one cool, saturated accent against the warm world, so the hero silhouette pops. */
+  /** Soft warm pastel clothing for the shepherd — clay/terracotta rather than a saturated color, so he stays warm and gentle against the world instead of popping as a cool accent. */
   robe: {
-    shadow: "#274741",
-    base: "#3d6b63",
-    highlight: "#5c9689",
+    shadow: "#a8715a",
+    base: "#dda07c",
+    highlight: "#f5cda3",
+  },
+  /** A rustier wrap over one shoulder, layered on top of the robe so the clothing silhouette reads clearly as a shepherd's mantle. */
+  mantle: {
+    shadow: "#8a4a37",
+    base: "#bd6a45",
+    highlight: "#e0a06a",
   },
   wool: {
     shadow: "#cbb98f",

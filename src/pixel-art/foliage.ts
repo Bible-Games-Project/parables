@@ -62,6 +62,55 @@ export function buildTree(x: number, baseY: number, rng: () => number, target?: 
 }
 
 /**
+ * A bare, leafless trunk with a few angular branches — the same tapered
+ * two-tone trunk construction as `buildTree`, minus the canopy, for dead
+ * trees scattered among the living ones.
+ */
+export function buildDeadTree(x: number, baseY: number, rng: () => number, target?: Graphics): Graphics {
+  const g = target ?? new Graphics();
+  const trunkHeight = 15 + rng() * 7;
+  const trunkTopY = baseY - trunkHeight;
+  const lean = (rng() - 0.5) * 3;
+
+  g.poly([
+    x - 4,
+    baseY,
+    x - 1.4 + lean * 0.3,
+    trunkTopY + 3,
+    x + 1.4 + lean * 0.3,
+    trunkTopY + 3,
+    x + 4,
+    baseY,
+  ]).fill(hexToNumber(palette.wood.dark));
+  g.rect(x - 2 + lean * 0.5, trunkTopY, 2.2, trunkHeight).fill(hexToNumber(palette.wood.darker));
+  g.rect(x + 0.2 + lean * 0.5, trunkTopY, 2, trunkHeight).fill(hexToNumber(palette.wood.dark));
+  g.rect(x + 1 + lean * 0.5, trunkTopY, 0.7, trunkHeight * 0.7).fill(hexToNumber(palette.wood.light));
+
+  const branchCount = 3 + Math.floor(rng() * 3);
+  for (let i = 0; i < branchCount; i++) {
+    const branchY = trunkTopY + rng() * trunkHeight * 0.5;
+    const side = rng() > 0.5 ? 1 : -1;
+    const len = 4 + rng() * 5;
+    const angle = 0.5 + rng() * 0.5;
+    const bx = x + lean * 0.5 + side;
+    const ex = bx + Math.sin(angle) * len * side;
+    const ey = branchY - Math.cos(angle) * len;
+    g.moveTo(bx, branchY)
+      .lineTo(ex, ey)
+      .stroke({ width: 1.2 + rng() * 0.6, color: hexToNumber(palette.wood.darker) });
+    if (rng() > 0.5) {
+      const fx = ex + Math.sin(angle + 0.6) * 3 * side;
+      const fy = ey - Math.cos(angle + 0.6) * 3;
+      g.moveTo(ex, ey)
+        .lineTo(fx, fy)
+        .stroke({ width: 0.8, color: hexToNumber(palette.wood.darker) });
+    }
+  }
+
+  return g;
+}
+
+/**
  * A low clustered bush: same shadow/base/highlight foliage passes as a tree,
  * just squat and ground-hugging. Draws into `target` if given — bushes don't
  * need per-object Y-sorting against characters, so callers with many of them

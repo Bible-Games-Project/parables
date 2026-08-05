@@ -11,7 +11,6 @@ import {
   type Rect,
 } from "@/engine/collision";
 import { steerToward } from "@/engine/chaseAI";
-import { createRng } from "@/pixel-art/prng";
 import {
   createSheepSprite,
   createShepherdSprite,
@@ -86,6 +85,10 @@ export class Shepherd {
     this.sprite.body.y = bodyBobWalk + bodyBobIdle;
     this.sprite.head.rotation = Math.sin(this.idlePhase * 1.7) * 0.05 * (1 - this.walkBlend);
 
+    // Idle breathing: a gentle chest scale pulse, strongest at rest.
+    const breathe = Math.sin(this.idlePhase * 1.8) * 0.02 * (1 - this.walkBlend);
+    this.sprite.torso.scale.set(1 + breathe * 0.6, 1 + breathe);
+
     if (this.staffCooldown > 0) this.staffCooldown -= dt;
     if (this.staffActiveTime > 0) this.staffActiveTime -= dt;
   }
@@ -106,32 +109,25 @@ export class Shepherd {
   }
 }
 
-export type SheepBehavior = "wandering" | "following";
-
-const SHEEP_FRONT_LEG_BASE_Y = 2.6;
-const SHEEP_BACK_LEG_BASE_Y = 2.8;
+export type SheepBehavior = "waiting" | "following";
 
 export class LostSheep {
   position: Vector2;
   radius = 6;
   maxHp = 100;
   hp = 100;
-  behavior: SheepBehavior = "wandering";
+  /** Starts "waiting" — motionless on its hill, guarded — until the shepherd finds it and it flees to follow. */
+  behavior: SheepBehavior = "waiting";
   sprite: SheepVisual;
 
-  private wanderTarget: Vector2;
-  private wanderSpeed = 34;
   private followSpeed = 92;
   private followDistance = 22;
-  private rng = createRng(Date.now() & 0xffffffff);
-  private retargetIn = 0;
   private walkPhase = 0;
   private idlePhase = 0;
   private walkBlend = 0;
 
   constructor(start: Vector2) {
     this.position = { ...start };
-    this.wanderTarget = { ...start };
     this.sprite = createSheepSprite();
     this.sprite.container.position.set(start.x, start.y);
   }
@@ -143,19 +139,7 @@ export class LostSheep {
   update(dt: number, followTarget: Vector2): void {
     let velocity: Vector2 = { x: 0, y: 0 };
 
-    if (this.behavior === "wandering") {
-      this.retargetIn -= dt;
-      if (this.retargetIn <= 0 || distance(this.position, this.wanderTarget) < 6) {
-        this.wanderTarget = {
-          x: this.rng() * WORLD_WIDTH,
-          y: this.rng() * WORLD_HEIGHT,
-        };
-        this.retargetIn = 3 + this.rng() * 3;
-      }
-      const before = { ...this.position };
-      this.position = steerToward(this.position, this.wanderTarget, this.wanderSpeed, dt);
-      velocity = { x: this.position.x - before.x, y: this.position.y - before.y };
-    } else {
+    if (this.behavior === "following") {
       const d = distance(this.position, followTarget);
       if (d > this.followDistance) {
         const before = { ...this.position };
@@ -174,9 +158,9 @@ export class LostSheep {
     this.walkPhase += dt * 10;
     this.idlePhase += dt;
 
-    const lift = 1.3 * this.walkBlend;
-    this.sprite.frontLeg.y = SHEEP_FRONT_LEG_BASE_Y - Math.max(0, Math.sin(this.walkPhase)) * lift;
-    this.sprite.backLeg.y = SHEEP_BACK_LEG_BASE_Y - Math.max(0, Math.sin(this.walkPhase + Math.PI)) * lift;
+    const legAmp = 0.6 * this.walkBlend;
+    this.sprite.frontLeg.rotation = Math.sin(this.walkPhase) * legAmp;
+    this.sprite.backLeg.rotation = -Math.sin(this.walkPhase) * legAmp;
     this.sprite.head.rotation = Math.sin(this.idlePhase * 1.5) * 0.08 * (1 - this.walkBlend);
   }
 
@@ -194,6 +178,8 @@ export class Wolf {
   speed = 62;
   hp = 30;
   sprite: WolfVisual;
+  /** Guard wolves stand watch, motionless, until the scene activates them (e.g. the player finds the sheep they're guarding). */
+  guarding = false;
 
   private stunTimer = 0;
   private knockback: Vector2 = { x: 0, y: 0 };
@@ -229,20 +215,27 @@ export class Wolf {
     this.attackFlash = 0.25;
   }
 
-  update(dt: number, chaseTarget: Vector2 | undefined): void {
+  update(dt: number, chaseTarget: Vector2 | undefined, circleObstacles: CircleObstacle[] = []): void {
     if (this.damageCooldown > 0) this.damageCooldown -= dt;
     if (this.attackFlash > 0) this.attackFlash -= dt;
     let velocity: Vector2 = { x: 0, y: 0 };
+    const effectiveTarget = this.guarding ? undefined : chaseTarget;
 
     if (this.stunTimer > 0) {
       this.stunTimer -= dt;
       this.position.x += this.knockback.x * dt;
       this.position.y += this.knockback.y * dt;
       this.knockback = { x: lerp(this.knockback.x, 0, 0.15), y: lerp(this.knockback.y, 0, 0.15) };
-    } else if (chaseTarget) {
+    } else if (effectiveTarget) {
       const before = { ...this.position };
-      this.position = steerToward(this.position, chaseTarget, this.speed, dt);
+      this.position = steerToward(this.position, effectiveTarget, this.speed, dt);
       velocity = { x: this.position.x - before.x, y: this.position.y - before.y };
+    }
+
+    // Trees, bushes and large rocks block wolves too — they slide along an
+    // obstacle rather than pathfinding around it, which reads fine at this scale.
+    for (const obstacle of circleObstacles) {
+      this.position = resolveCircleVsCircle(this.position, this.radius, obstacle, obstacle.radius);
     }
 
     // Wolves may surround the pen but can never cross the fence into it.

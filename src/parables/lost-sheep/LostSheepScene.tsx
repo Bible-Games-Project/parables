@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Application, Container } from "pixi.js";
+import { Application, Container, Graphics } from "pixi.js";
+import { hexToNumber } from "@/pixel-art/color";
+import { palette } from "@/pixel-art/palette";
 import { PixiStage } from "@/engine/PixiStage";
 import { KeyboardController } from "@/engine/input";
 import { Camera } from "@/engine/camera";
@@ -32,12 +34,24 @@ import { useProgressStore } from "@/store/progressStore";
 import { getNextParableId } from "@/parables/registry";
 
 const RETURN_RADIUS = 46;
-const FOUND_RADIUS = 20;
+const FOUND_RADIUS = 34;
 const STAFF_KNOCKBACK = 220;
 const STAFF_STUN = 1.1;
 const WOLF_CONTACT_DAMAGE = 8;
 const SEARCH_WOLF_CAP = 3;
 const ESCORT_WOLF_CAP = 5;
+const GUARD_WOLF_COUNT = 3;
+const GUARD_WOLF_DISTANCE = 26;
+
+/** A small raised mound of ground the lost sheep waits on — purely decorative, no gameplay elevation. */
+function drawMound(x: number, y: number): Graphics {
+  const g = new Graphics();
+  g.ellipse(x, y + 5, 34, 15).fill({ color: hexToNumber(palette.foliage.shadow), alpha: 0.35 });
+  g.ellipse(x, y + 2, 31, 17).fill(hexToNumber(palette.grass.dark));
+  g.ellipse(x, y, 27, 14).fill(hexToNumber(palette.grass.base));
+  g.ellipse(x - 5, y - 4, 16, 8).fill({ color: hexToNumber(palette.grass.light), alpha: 0.55 });
+  return g;
+}
 
 interface RuntimeRefs {
   app: Application;
@@ -45,6 +59,7 @@ interface RuntimeRefs {
   shepherd: Shepherd;
   sheep: LostSheep;
   wolves: Wolf[];
+  guardWolves: Wolf[];
   flock: Flock;
   terrainObstacles: TerrainObstacle[];
   input: KeyboardController;
@@ -83,9 +98,25 @@ export function LostSheepScene({ onExit, onRetry }: LostSheepSceneProps) {
     world.addChild(fence);
 
     const shepherd = new Shepherd(SHEPHERD_START);
-    const sheep = new LostSheep(pickLostSheepSpawn());
+    const sheepSpawn = pickLostSheepSpawn();
+    const sheep = new LostSheep(sheepSpawn);
+    world.addChild(drawMound(sheepSpawn.x, sheepSpawn.y));
     world.addChild(sheep.sprite.container);
     world.addChild(shepherd.sprite.container);
+
+    // Three wolves keep watch at the foot of the hill, motionless, until the
+    // shepherd gets close enough to find the sheep they're guarding.
+    const guardWolves: Wolf[] = [];
+    for (let i = 0; i < GUARD_WOLF_COUNT; i++) {
+      const angle = (i / GUARD_WOLF_COUNT) * Math.PI * 2 + Math.PI / 2;
+      const wolf = new Wolf({
+        x: sheepSpawn.x + Math.cos(angle) * GUARD_WOLF_DISTANCE,
+        y: sheepSpawn.y + Math.sin(angle) * GUARD_WOLF_DISTANCE + 6,
+      });
+      wolf.guarding = true;
+      guardWolves.push(wolf);
+      world.addChild(wolf.sprite.container);
+    }
 
     const input = new KeyboardController();
     const camera = new Camera({ width: WORLD_WIDTH, height: WORLD_HEIGHT });
@@ -97,7 +128,8 @@ export function LostSheepScene({ onExit, onRetry }: LostSheepSceneProps) {
       world,
       shepherd,
       sheep,
-      wolves: [],
+      wolves: [...guardWolves],
+      guardWolves,
       flock,
       terrainObstacles,
       input,
@@ -147,9 +179,10 @@ export function LostSheepScene({ onExit, onRetry }: LostSheepSceneProps) {
       current.night.setFollowPosition(current.camera.toScreen(current.shepherd.position));
 
       if (playing) {
-        // Search -> found transition.
+        // Search -> found transition: the sheep flees and the wolves guarding it wake up.
         if (state === "search" && distance(current.shepherd.position, current.sheep.position) < FOUND_RADIUS) {
           current.sheep.startFollowing();
+          for (const guard of current.guardWolves) guard.guarding = false;
           current.mission.set("escort");
         }
 
@@ -169,9 +202,32 @@ export function LostSheepScene({ onExit, onRetry }: LostSheepSceneProps) {
         ];
         for (const wolf of current.wolves) {
           const nearest = pickNearestTarget(wolf.position, candidates);
-          wolf.update(dt, nearest?.position);
+          wolf.update(dt, nearest?.position, current.terrainObstacles);
+        }
 
-          if (!wolf.stunned && wolf.canDamage()) {
+        // Keep wolves from ever occupying the same space — a simple pairwise push-apart.
+        for (let i = 0; i < current.wolves.length; i++) {
+          for (let j = i + 1; j < current.wolves.length; j++) {
+            const a = current.wolves[i];
+            const b = current.wolves[j];
+            const d = distance(a.position, b.position);
+            const minDist = a.radius + b.radius + 3;
+            if (d > 0 && d < minDist) {
+              const overlap = minDist - d;
+              const nx = (a.position.x - b.position.x) / d;
+              const ny = (a.position.y - b.position.y) / d;
+              a.position.x += nx * overlap * 0.5;
+              a.position.y += ny * overlap * 0.5;
+              b.position.x -= nx * overlap * 0.5;
+              b.position.y -= ny * overlap * 0.5;
+              a.sprite.container.position.set(a.position.x, a.position.y);
+              b.sprite.container.position.set(b.position.x, b.position.y);
+            }
+          }
+        }
+
+        for (const wolf of current.wolves) {
+          if (!wolf.guarding && !wolf.stunned && wolf.canDamage()) {
             if (circlesOverlap(wolf.position, wolf.radius, current.shepherd.position, current.shepherd.radius + 3)) {
               current.shepherd.takeDamage(WOLF_CONTACT_DAMAGE);
               wolf.markDamaged();

@@ -15,9 +15,6 @@ const INTERIOR = {
 
 type FlockState = "idle" | "wander" | "graze";
 
-const FRONT_LEG_BASE_Y = 2.6;
-const BACK_LEG_BASE_Y = 2.8;
-
 /** One sheep safe in the pen: alternates between standing still, slowly wandering, and grazing, but never leaves the interior. */
 class FlockSheep {
   position: Vector2;
@@ -87,9 +84,9 @@ class FlockSheep {
     this.walkPhase += dt * 7;
     this.grazeBlend += ((this.state === "graze" ? 1 : 0) - this.grazeBlend) * Math.min(1, dt * 3);
 
-    const lift = 1 * this.walkBlend;
-    this.sprite.frontLeg.y = FRONT_LEG_BASE_Y - Math.max(0, Math.sin(this.walkPhase)) * lift;
-    this.sprite.backLeg.y = BACK_LEG_BASE_Y - Math.max(0, Math.sin(this.walkPhase + Math.PI)) * lift;
+    const legAmp = 0.55 * this.walkBlend;
+    this.sprite.frontLeg.rotation = Math.sin(this.walkPhase) * legAmp;
+    this.sprite.backLeg.rotation = -Math.sin(this.walkPhase) * legAmp;
 
     const idleSway = Math.sin(this.idlePhase * 1.4) * 0.06 * (1 - this.grazeBlend) * (1 - this.walkBlend);
     this.sprite.head.rotation = idleSway + 0.55 * this.grazeBlend;

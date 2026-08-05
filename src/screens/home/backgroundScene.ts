@@ -3,7 +3,7 @@ import { VIRTUAL_HEIGHT, VIRTUAL_WIDTH } from "@/engine/constants";
 import { hexToNumber, lerpColor } from "@/pixel-art/color";
 import { createRng } from "@/pixel-art/prng";
 import { palette } from "@/pixel-art/palette";
-import { buildTree } from "@/pixel-art/foliage";
+import { buildBush, buildDeadTree, buildRock, buildTree } from "@/pixel-art/foliage";
 
 const HORIZON = 168;
 
@@ -18,7 +18,7 @@ export function createHomeBackground(app: Application): () => void {
   drawFarHill(root);
   drawTrees(root);
   drawNearHill(root);
-  const grassBlades = drawGrassField(root);
+  drawForestFloor(root);
   const birds = new Container();
   root.addChild(birds);
 
@@ -36,10 +36,6 @@ export function createHomeBackground(app: Application): () => void {
     for (const shadow of shadows) {
       shadow.x += shadow.speed * dt;
       if (shadow.x > VIRTUAL_WIDTH + 40) shadow.x = -40;
-    }
-
-    for (const blade of grassBlades) {
-      blade.rotation = Math.sin(elapsed * 1.6 + blade.phase) * 0.12;
     }
 
     if (elapsed > nextBirdAt) {
@@ -216,20 +212,20 @@ function drawNearHill(root: Container): void {
   root.addChild(hill);
 }
 
-interface Blade extends Graphics {
-  phase: number;
-}
-
-function drawGrassField(root: Container): Blade[] {
+/**
+ * The foreground ground: a plain grass fill with soft dappled shading, then
+ * a scatter of more trees (the same handcrafted `buildTree`), a few dead
+ * trees, rocks and bushes — a cozy forest floor instead of a flower/blade
+ * pattern repeated everywhere. A column around the menu is left clear.
+ */
+function drawForestFloor(root: Container): void {
   const rng = createRng(7);
   const layer = new Container();
-  const fieldTop = HORIZON + 60;
+  const fieldTop = HORIZON + 30;
 
   const field = new Graphics();
   field.rect(0, fieldTop, VIRTUAL_WIDTH, VIRTUAL_HEIGHT - fieldTop).fill(hexToNumber(palette.grass.base));
-  // Dappled light/shade patches, built from a few soft overlapping blobs
-  // each so the field reads as mottled texture rather than stamped circles.
-  for (let i = 0; i < 16; i++) {
+  for (let i = 0; i < 14; i++) {
     const px = rng() * VIRTUAL_WIDTH;
     const py = fieldTop + rng() * (VIRTUAL_HEIGHT - fieldTop);
     const tint = hexToNumber(rng() > 0.5 ? palette.grass.light : palette.grass.dark);
@@ -241,46 +237,34 @@ function drawGrassField(root: Container): Blade[] {
       field.circle(bx, by, br).fill({ color: tint, alpha: 0.05 });
     }
   }
+  field.zIndex = fieldTop;
   layer.addChild(field);
 
-  // Scattered small pixel-art flowers: petals around a contrasting center, with a soft ground shadow.
-  const flowerVariants = [
-    { petal: palette.flowers.poppyPetal, center: palette.flowers.poppyCenter },
-    { petal: palette.flowers.daisyPetal, center: palette.flowers.daisyCenter },
-    { petal: palette.flowers.violetPetal, center: palette.flowers.violetCenter },
-  ];
-  const flowers = new Graphics();
-  for (let i = 0; i < 30; i++) {
-    const fx = rng() * VIRTUAL_WIDTH;
-    const fy = fieldTop + 6 + rng() * (VIRTUAL_HEIGHT - fieldTop - 10);
-    const variant = flowerVariants[Math.floor(rng() * flowerVariants.length)];
-    const petal = hexToNumber(variant.petal);
-    const center = hexToNumber(variant.center);
+  const menuSafeX = { min: VIRTUAL_WIDTH / 2 - 115, max: VIRTUAL_WIDTH / 2 + 115 };
+  const scatterRng = createRng(203);
+  const propCount = 30;
+  for (let i = 0; i < propCount; i++) {
+    const x = scatterRng() * VIRTUAL_WIDTH;
+    const y = fieldTop + 6 + scatterRng() * (VIRTUAL_HEIGHT - fieldTop - 8);
+    if (x > menuSafeX.min && x < menuSafeX.max) continue;
 
-    flowers.circle(fx + 0.4, fy + 0.6, 1.1).fill({ color: hexToNumber(palette.foliage.shadow), alpha: 0.3 });
-    flowers.circle(fx, fy - 1, 0.9).fill(petal);
-    flowers.circle(fx, fy + 1, 0.9).fill(petal);
-    flowers.circle(fx - 1, fy, 0.9).fill(petal);
-    flowers.circle(fx + 1, fy, 0.9).fill(petal);
-    flowers.circle(fx, fy, 0.7).fill(center);
-  }
-  layer.addChild(flowers);
-
-  const blades: Blade[] = [];
-  for (let x = 4; x < VIRTUAL_WIDTH; x += 9) {
-    const y = fieldTop + rng() * (VIRTUAL_HEIGHT - fieldTop - 6);
-    const blade = new Graphics() as Blade;
-    blade.rect(-1, -7, 2, 4).fill(hexToNumber(palette.grass.dark));
-    blade.rect(-1, -4, 2, 4).fill(hexToNumber(palette.grass.light));
-    blade.x = x;
-    blade.y = y;
-    blade.phase = rng() * Math.PI * 2;
-    layer.addChild(blade);
-    blades.push(blade);
+    const roll = scatterRng();
+    let prop: Graphics;
+    if (roll < 0.6) {
+      prop = buildTree(x, y, scatterRng);
+    } else if (roll < 0.72) {
+      prop = buildDeadTree(x, y, scatterRng);
+    } else if (roll < 0.9) {
+      prop = buildBush(x, y, scatterRng);
+    } else {
+      prop = buildRock(x, y, scatterRng, 0.7 + scatterRng() * 0.8);
+    }
+    prop.zIndex = y;
+    layer.addChild(prop);
   }
 
+  layer.sortableChildren = true;
   root.addChild(layer);
-  return blades;
 }
 
 interface BirdSprite extends Container {
