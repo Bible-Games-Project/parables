@@ -7,6 +7,27 @@ import { buildBush, buildDeadTree, buildRock, buildTree } from "@/pixel-art/foli
 
 const HORIZON = 168;
 
+const FLOWER_VARIANTS = [
+  { petal: palette.flowers.poppyPetal, center: palette.flowers.poppyCenter },
+  { petal: palette.flowers.daisyPetal, center: palette.flowers.daisyCenter },
+  { petal: palette.flowers.violetPetal, center: palette.flowers.violetCenter },
+];
+
+/** A tiny five-dot blossom — a soft shadow, four petals, and a center dot. */
+function buildFlower(x: number, y: number, rng: () => number): Graphics {
+  const g = new Graphics();
+  const variant = FLOWER_VARIANTS[Math.floor(rng() * FLOWER_VARIANTS.length)];
+  const petal = hexToNumber(variant.petal);
+  const center = hexToNumber(variant.center);
+  g.circle(x + 0.4, y + 0.6, 1.1).fill({ color: hexToNumber(palette.foliage.shadow), alpha: 0.28 });
+  g.circle(x, y - 1, 0.9).fill(petal);
+  g.circle(x, y + 1, 0.9).fill(petal);
+  g.circle(x - 1, y, 0.9).fill(petal);
+  g.circle(x + 1, y, 0.9).fill(petal);
+  g.circle(x, y, 0.7).fill(center);
+  return g;
+}
+
 /** Builds the animated cozy pixel-art landscape behind the Home screen. */
 export function createHomeBackground(app: Application): () => void {
   const root = new Container();
@@ -247,7 +268,7 @@ function drawForestFloor(root: Container): void {
 
   const menuSafeX = { min: VIRTUAL_WIDTH / 2 - 115, max: VIRTUAL_WIDTH / 2 + 115 };
   const scatterRng = createRng(203);
-  const propCount = 30;
+  const propCount = 38;
   for (let i = 0; i < propCount; i++) {
     const x = scatterRng() * VIRTUAL_WIDTH;
     const y = fieldTop + 6 + scatterRng() * (VIRTUAL_HEIGHT - fieldTop - 8);
@@ -255,17 +276,36 @@ function drawForestFloor(root: Container): void {
 
     const roll = scatterRng();
     let prop: Graphics;
-    if (roll < 0.6) {
+    if (roll < 0.5) {
       prop = buildTree(x, y, scatterRng);
-    } else if (roll < 0.72) {
+    } else if (roll < 0.6) {
       prop = buildDeadTree(x, y, scatterRng);
-    } else if (roll < 0.9) {
+    } else if (roll < 0.75) {
       prop = buildBush(x, y, scatterRng);
-    } else {
+    } else if (roll < 0.9) {
       prop = buildRock(x, y, scatterRng, 0.7 + scatterRng() * 0.8);
+    } else {
+      prop = buildFlower(x, y, scatterRng);
     }
     prop.zIndex = y;
     layer.addChild(prop);
+  }
+
+  // A little extra life just outside the menu's safe column — flanking
+  // trees and rocks so the center doesn't feel emptier than the edges,
+  // while the safe column itself stays completely clear.
+  const flankRng = createRng(509);
+  const flankBand = 46;
+  for (const side of [-1, 1]) {
+    const edge = side < 0 ? menuSafeX.min : menuSafeX.max;
+    for (let i = 0; i < 3; i++) {
+      const x = edge + side * (6 + flankRng() * flankBand);
+      const y = fieldTop + 10 + flankRng() * (VIRTUAL_HEIGHT - fieldTop - 14);
+      const roll = flankRng();
+      const prop = roll < 0.55 ? buildTree(x, y, flankRng) : buildRock(x, y, flankRng, 0.7 + flankRng() * 0.7);
+      prop.zIndex = y;
+      layer.addChild(prop);
+    }
   }
 
   layer.sortableChildren = true;

@@ -8,16 +8,51 @@
 
 .sectionTitle {
   font-size: 0.75rem;
-  color: #e8b23d;
-  text-shadow: 2px 2px 0 rgba(0, 0, 0, 0.4);
+  color: #6d3d1d;
+  text-shadow: 1px 1px 0 rgba(245, 223, 209, 0.5);
   letter-spacing: 0.04em;
   margin-bottom: 0.7rem;
+}
+
+.sectionHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  background: transparent;
+  border: none;
+  padding: 0;
+  margin-bottom: 0.7rem;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.sectionHeader .sectionTitle {
+  margin-bottom: 0;
+}
+
+.sectionValue {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.65rem;
+  color: #a35a29;
+}
+
+.chevron {
+  display: inline-block;
+  transition: transform 120ms ease-out;
+}
+
+.chevron[data-open="true"] {
+  transform: rotate(180deg);
 }
 
 .languageGrid {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 0.6rem;
+  margin-bottom: 0.7rem;
 }
 
 .languageOption {

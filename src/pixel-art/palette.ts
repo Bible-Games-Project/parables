@@ -6,13 +6,13 @@
  * so foliage, ground and UI all read as lit by the same light.
  */
 export const palette = {
-  /** Derived straight from the sky's own horizon gold (sky.dusk[2]) so the wooden UI reads as lit by the same sunset, not a generic unrelated brown. */
+  /** One warm terracotta ramp built entirely from a single reference tone (#EAA87C) at fixed hue, so every wooden UI surface — buttons, the Settings panel — reads as one carved-from-the-same-tree kit. */
   wood: {
-    darker: "#5a341a",
-    dark: "#8f5726",
-    base: "#c97f3f",
-    light: "#f0ab5e",
-    highlight: "#ffd9a0",
+    darker: "#6d3d1d",
+    dark: "#a35a29",
+    base: "#eaa87c",
+    light: "#f1c5a7",
+    highlight: "#f5dfd1",
   },
   woodDisabled: {
     darker: "#2b2b2b",

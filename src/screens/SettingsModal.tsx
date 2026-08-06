@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Modal } from "@/ui/Modal";
 import { PixelButton } from "@/ui/PixelButton";
 import { PixelSlider } from "@/ui/PixelSlider";
@@ -20,22 +21,42 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
   const toggleAudio = useSettingsStore((state) => state.toggleAudio);
   const setVolume = useSettingsStore((state) => state.setVolume);
 
+  const [languageExpanded, setLanguageExpanded] = useState(false);
+
   return (
     <Modal title={t("settings.title")} onClose={onClose} seed="settings-modal">
       <div className={styles.section}>
-        <div className={styles.sectionTitle}>{t("language.title")}</div>
-        <div className={styles.languageGrid}>
-          {LOCALE_CODES.map((code) => (
-            <PixelButton
-              key={code}
-              className={styles.languageOption}
-              disabled={code === locale}
-              onClick={() => setLocale(code)}
-            >
-              {LOCALE_NAMES[code]}
-            </PixelButton>
-          ))}
-        </div>
+        <button
+          type="button"
+          className={styles.sectionHeader}
+          onClick={() => setLanguageExpanded((value) => !value)}
+          aria-expanded={languageExpanded}
+        >
+          <span className={styles.sectionTitle}>{t("language.title")}</span>
+          <span className={styles.sectionValue}>
+            {LOCALE_NAMES[locale]}
+            <span className={styles.chevron} data-open={languageExpanded}>
+              ▾
+            </span>
+          </span>
+        </button>
+        {languageExpanded && (
+          <div className={styles.languageGrid}>
+            {LOCALE_CODES.map((code) => (
+              <PixelButton
+                key={code}
+                className={styles.languageOption}
+                disabled={code === locale}
+                onClick={() => {
+                  setLocale(code);
+                  setLanguageExpanded(false);
+                }}
+              >
+                {LOCALE_NAMES[code]}
+              </PixelButton>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className={styles.section}>
