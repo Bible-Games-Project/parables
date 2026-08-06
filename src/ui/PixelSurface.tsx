@@ -7,6 +7,8 @@ interface PixelSurfaceProps {
   state: SurfaceState;
   cornerRadius?: number;
   className?: string;
+  /** Washes a semi-transparent black layer over the surface so text laid on top of it stays readable. Only set on surfaces that hold text. */
+  dimForText?: boolean;
 }
 
 /**
@@ -14,7 +16,7 @@ interface PixelSurfaceProps {
  * box size or interaction state changes; the seed keeps grain/knots stable
  * across re-renders of the same element.
  */
-export function PixelSurface({ seed, state, cornerRadius, className }: PixelSurfaceProps) {
+export function PixelSurface({ seed, state, cornerRadius, className, dimForText }: PixelSurfaceProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const seedNumber = useRef(hashString(seed)).current;
 
@@ -36,14 +38,14 @@ export function PixelSurface({ seed, state, cornerRadius, className }: PixelSurf
       const ctx = canvas.getContext("2d");
       if (!ctx) return;
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      paintWoodSurface(ctx, width, height, { seed: seedNumber, state, cornerRadius });
+      paintWoodSurface(ctx, width, height, { seed: seedNumber, state, cornerRadius, dimForText });
     };
 
     paint();
     const observer = new ResizeObserver(paint);
     if (canvas.parentElement) observer.observe(canvas.parentElement);
     return () => observer.disconnect();
-  }, [seedNumber, state, cornerRadius]);
+  }, [seedNumber, state, cornerRadius, dimForText]);
 
   return (
     <canvas

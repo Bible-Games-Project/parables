@@ -28,7 +28,12 @@ export function PixelButton({ children, size = "default", icon, className, disab
       onMouseUp={() => setPressed(false)}
       {...rest}
     >
-      <PixelSurface seed={typeof children === "string" ? children : "button"} state={state} cornerRadius={10} />
+      <PixelSurface
+        seed={typeof children === "string" ? children : "button"}
+        state={state}
+        cornerRadius={10}
+        dimForText
+      />
       {icon}
       <span className={styles.label}>{children}</span>
     </button>

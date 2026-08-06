@@ -75,6 +75,7 @@ class FlockSheep {
       y: Math.max(INTERIOR.y + this.radius, Math.min(INTERIOR.y + INTERIOR.height - this.radius, this.position.y)),
     };
     this.sprite.container.position.set(this.position.x, this.position.y);
+    this.sprite.container.zIndex = this.position.y;
 
     if (velocity.x > 0.03) this.sprite.body.scale.x = Math.abs(this.sprite.body.scale.x);
     else if (velocity.x < -0.03) this.sprite.body.scale.x = -Math.abs(this.sprite.body.scale.x);
@@ -113,6 +114,36 @@ export class Flock {
 
   update(dt: number): void {
     for (const member of this.members) member.update(dt);
+
+    // Keep flock members from ever occupying the same space — the same
+    // pairwise push-apart used for wolves, so the pen feels like it's full
+    // of real bodies instead of overlapping silhouettes.
+    for (let i = 0; i < this.members.length; i++) {
+      for (let j = i + 1; j < this.members.length; j++) {
+        const a = this.members[i];
+        const b = this.members[j];
+        const dx = a.position.x - b.position.x;
+        const dy = a.position.y - b.position.y;
+        const d = Math.hypot(dx, dy);
+        const minDist = a.radius + b.radius + 1.5;
+        if (d > 0 && d < minDist) {
+          const overlap = minDist - d;
+          const nx = dx / d;
+          const ny = dy / d;
+          a.position.x += nx * overlap * 0.5;
+          a.position.y += ny * overlap * 0.5;
+          b.position.x -= nx * overlap * 0.5;
+          b.position.y -= ny * overlap * 0.5;
+        }
+      }
+    }
+    for (const member of this.members) {
+      member.position = {
+        x: Math.max(INTERIOR.x + member.radius, Math.min(INTERIOR.x + INTERIOR.width - member.radius, member.position.x)),
+        y: Math.max(INTERIOR.y + member.radius, Math.min(INTERIOR.y + INTERIOR.height - member.radius, member.position.y)),
+      };
+      member.sprite.container.position.set(member.position.x, member.position.y);
+    }
   }
 
   /** Current positions as collision circles, for the shepherd's obstacle check. */

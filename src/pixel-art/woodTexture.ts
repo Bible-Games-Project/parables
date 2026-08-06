@@ -45,7 +45,7 @@ export function paintWoodSurface(
   ctx: CanvasRenderingContext2D,
   width: number,
   height: number,
-  options: { seed: number; state: SurfaceState; cornerRadius?: number },
+  options: { seed: number; state: SurfaceState; cornerRadius?: number; dimForText?: boolean },
 ): void {
   const { seed, state } = options;
   const shades = shadesForState(state);
@@ -92,6 +92,14 @@ export function paintWoodSurface(
     ctx.fillRect(kx * ART_PIXEL, ky * ART_PIXEL, ART_PIXEL * 2, ART_PIXEL * 2);
     ctx.fillStyle = shades.dark;
     ctx.fillRect((kx + 1) * ART_PIXEL, (ky - 1) * ART_PIXEL, ART_PIXEL, ART_PIXEL);
+  }
+
+  // A semi-transparent black wash over the whole surface, so the text laid
+  // on top of it stays readable no matter how light or busy the wood grain
+  // underneath is — without hiding the grain itself.
+  if (options.dimForText) {
+    ctx.fillStyle = "rgba(0, 0, 0, 0.5)";
+    ctx.fillRect(0, 0, width, height);
   }
 
   ctx.restore();

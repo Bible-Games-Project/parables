@@ -14,6 +14,14 @@ export const palette = {
     light: "#f1c5a7",
     highlight: "#f5dfd1",
   },
+  /** A separate, deliberately dark and desaturated monochrome wood ramp — one hue, only value changes — reserved for the pen fence, so it reads as weathered timber instead of the bright UI wood. */
+  fence: {
+    darkest: "#241a12",
+    dark: "#3b2b1c",
+    base: "#4f3a26",
+    mid: "#634731",
+    highlight: "#7a5c3f",
+  },
   woodDisabled: {
     darker: "#2b2b2b",
     dark: "#454545",

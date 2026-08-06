@@ -8,8 +8,8 @@
 
 .sectionTitle {
   font-size: 0.75rem;
-  color: #6d3d1d;
-  text-shadow: 1px 1px 0 rgba(245, 223, 209, 0.5);
+  color: #f5dfd1;
+  text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.5);
   letter-spacing: 0.04em;
   margin-bottom: 0.7rem;
 }
@@ -36,7 +36,7 @@
   align-items: center;
   gap: 0.4rem;
   font-size: 0.65rem;
-  color: #a35a29;
+  color: #f1c5a7;
 }
 
 .chevron {

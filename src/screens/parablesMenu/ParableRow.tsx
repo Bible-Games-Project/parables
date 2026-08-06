@@ -35,7 +35,7 @@ export function ParableRow({ parable, unlocked, completed, onSelect }: ParableRo
       onMouseUp={() => setPressed(false)}
       onClick={() => onSelect(parable.id)}
     >
-      <PixelSurface seed={parable.id} state={state} cornerRadius={10} />
+      <PixelSurface seed={parable.id} state={state} cornerRadius={10} dimForText />
       <PixelIcon sprite={parable.icon} size={30} className={styles.icon} />
       <span className={styles.title}>{t(parable.titleKey)}</span>
       <span className={styles.status}>

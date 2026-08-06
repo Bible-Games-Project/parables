@@ -11,9 +11,21 @@ import { palette } from "@/pixel-art/palette";
  * Lost Sheep world so every tree in the game is built the same way. Draws
  * into `target` if given, for callers batching many trees per draw call
  * (e.g. one shared Graphics per Y-band, for cheap approximate depth sorting).
+ * If `canopyTarget` is given, the trunk is drawn into `target` (or a new
+ * Graphics) while the canopy puffs go into `canopyTarget` instead — lets a
+ * caller keep the trunk in a static always-below-characters layer while the
+ * canopy lives in a Y-sortable layer, so the player can walk in front of or
+ * behind the leafy part while the trunk never covers their feet.
  */
-export function buildTree(x: number, baseY: number, rng: () => number, target?: Graphics): Graphics {
+export function buildTree(
+  x: number,
+  baseY: number,
+  rng: () => number,
+  target?: Graphics,
+  canopyTarget?: Graphics,
+): Graphics {
   const g = target ?? new Graphics();
+  const canopy = canopyTarget ?? g;
   const trunkHeight = 12 + rng() * 5;
   const trunkTopY = baseY - trunkHeight;
 
@@ -40,19 +52,19 @@ export function buildTree(x: number, baseY: number, rng: () => number, target?: 
   puffs.push({ dx: 0, dy: -8, r: 8.5 + rng() * 2 });
 
   for (const p of puffs) {
-    g.circle(x + p.dx - 1, canopyY + p.dy + 2.2, p.r * 0.95).fill(hexToNumber(palette.foliage.shadow));
+    canopy.circle(x + p.dx - 1, canopyY + p.dy + 2.2, p.r * 0.95).fill(hexToNumber(palette.foliage.shadow));
   }
   for (const p of puffs) {
-    g.circle(x + p.dx, canopyY + p.dy, p.r * 0.86).fill(hexToNumber(palette.foliage.base));
+    canopy.circle(x + p.dx, canopyY + p.dy, p.r * 0.86).fill(hexToNumber(palette.foliage.base));
   }
   for (const p of puffs) {
     if (p.dx > -2.5) {
-      g.circle(x + p.dx + 1, canopyY + p.dy - 1.2, p.r * 0.52).fill(hexToNumber(palette.foliage.mid));
+      canopy.circle(x + p.dx + 1, canopyY + p.dy - 1.2, p.r * 0.52).fill(hexToNumber(palette.foliage.mid));
     }
   }
   const highlightPicks = puffs.filter((p) => p.dx > 1 && p.dy < -1).slice(0, 3);
   for (const p of highlightPicks) {
-    g.circle(x + p.dx + 1.5, canopyY + p.dy - 2, p.r * 0.32).fill({
+    canopy.circle(x + p.dx + 1.5, canopyY + p.dy - 2, p.r * 0.32).fill({
       color: hexToNumber(palette.foliage.highlight),
       alpha: 0.85,
     });

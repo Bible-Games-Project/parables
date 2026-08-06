@@ -251,16 +251,30 @@ function drawForestFloor(root: Container): void {
 
   const field = new Graphics();
   field.rect(0, fieldTop, VIRTUAL_WIDTH, VIRTUAL_HEIGHT - fieldTop).fill(hexToNumber(palette.grass.base));
-  for (let i = 0; i < 14; i++) {
+  for (let i = 0; i < 16; i++) {
     const px = rng() * VIRTUAL_WIDTH;
     const py = fieldTop + rng() * (VIRTUAL_HEIGHT - fieldTop);
     const tint = hexToNumber(rng() > 0.5 ? palette.grass.light : palette.grass.dark);
-    const blobCount = 3 + Math.floor(rng() * 2);
-    for (let b = 0; b < blobCount; b++) {
-      const bx = px + (rng() - 0.5) * 20;
-      const by = py + (rng() - 0.5) * 12;
-      const br = 6 + rng() * 8;
-      field.circle(bx, by, br).fill({ color: tint, alpha: 0.05 });
+    if (rng() < 0.7) {
+      const blobCount = 3 + Math.floor(rng() * 2);
+      for (let b = 0; b < blobCount; b++) {
+        const bx = px + (rng() - 0.5) * 20;
+        const by = py + (rng() - 0.5) * 12;
+        const br = 6 + rng() * 8;
+        field.circle(bx, by, br).fill({ color: tint, alpha: 0.05 });
+      }
+    } else {
+      const bladeCount = 4 + Math.floor(rng() * 4);
+      for (let b = 0; b < bladeCount; b++) {
+        const bx = px + (rng() - 0.5) * 14;
+        const by = py + (rng() - 0.5) * 9;
+        const len = 2 + rng() * 2.6;
+        const lean = (rng() - 0.5) * 1.4;
+        field
+          .moveTo(bx, by)
+          .lineTo(bx + lean, by - len)
+          .stroke({ width: 0.6, color: tint, alpha: 0.15 });
+      }
     }
   }
   field.zIndex = fieldTop;

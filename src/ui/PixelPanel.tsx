@@ -10,7 +10,7 @@ interface PixelPanelProps extends HTMLAttributes<HTMLDivElement> {
 export function PixelPanel({ children, seed = "panel", className, ...rest }: PixelPanelProps) {
   return (
     <div className={[styles.panel, className ?? ""].join(" ").trim()} {...rest}>
-      <PixelSurface seed={seed} state="idle" cornerRadius={14} />
+      <PixelSurface seed={seed} state="idle" cornerRadius={14} dimForText />
       <div className={styles.content}>{children}</div>
     </div>
   );

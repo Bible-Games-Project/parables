@@ -56,6 +56,7 @@ function drawMound(x: number, y: number): Graphics {
 interface RuntimeRefs {
   app: Application;
   world: Container;
+  dynamicLayer: Container;
   shepherd: Shepherd;
   sheep: LostSheep;
   wolves: Wolf[];
@@ -88,7 +89,7 @@ export function LostSheepScene({ onExit, onRetry }: LostSheepSceneProps) {
   const onReady = useCallback((app: Application) => {
     const world = new Container();
     app.stage.addChild(world);
-    const terrainObstacles = buildTerrain(world);
+    const { obstacles: terrainObstacles, dynamicLayer } = buildTerrain(world);
 
     const fence = createFenceOutline(PEN.width, PEN.height, { x: GATE.x - PEN.x, width: GATE.width });
     fence.position.set(PEN.x, PEN.y);
@@ -97,12 +98,17 @@ export function LostSheepScene({ onExit, onRetry }: LostSheepSceneProps) {
     world.addChild(flock.container);
     world.addChild(fence);
 
+    // `dynamicLayer` (tree canopies + large rocks) is added last so the
+    // player, sheep and wolves inside it can sort correctly against tall
+    // scenery by y — while still rendering above the fence/flock/mound.
+    world.addChild(dynamicLayer);
+
     const shepherd = new Shepherd(SHEPHERD_START);
     const sheepSpawn = pickLostSheepSpawn();
     const sheep = new LostSheep(sheepSpawn);
     world.addChild(drawMound(sheepSpawn.x, sheepSpawn.y));
-    world.addChild(sheep.sprite.container);
-    world.addChild(shepherd.sprite.container);
+    dynamicLayer.addChild(sheep.sprite.container);
+    dynamicLayer.addChild(shepherd.sprite.container);
 
     // Three wolves keep watch at the foot of the hill, motionless, until the
     // shepherd gets close enough to find the sheep they're guarding.
@@ -115,7 +121,7 @@ export function LostSheepScene({ onExit, onRetry }: LostSheepSceneProps) {
       });
       wolf.guarding = true;
       guardWolves.push(wolf);
-      world.addChild(wolf.sprite.container);
+      dynamicLayer.addChild(wolf.sprite.container);
     }
 
     const input = new KeyboardController();
@@ -126,6 +132,7 @@ export function LostSheepScene({ onExit, onRetry }: LostSheepSceneProps) {
     const runtime: RuntimeRefs = {
       app,
       world,
+      dynamicLayer,
       shepherd,
       sheep,
       wolves: [...guardWolves],
@@ -161,7 +168,12 @@ export function LostSheepScene({ onExit, onRetry }: LostSheepSceneProps) {
       const playing = state === "search" || state === "escort";
 
       const direction = state === "intro" || state === "victory" || state === "gameOver" ? { x: 0, y: 0 } : current.input.getDirection();
-      const obstacles: CircleObstacle[] = current.terrainObstacles.concat(current.flock.asObstacles());
+      // The player must never be able to walk through any living creature —
+      // the flock, the lost sheep, or a wolf all count as solid obstacles.
+      const obstacles: CircleObstacle[] = current.terrainObstacles
+        .concat(current.flock.asObstacles())
+        .concat([{ x: current.sheep.position.x, y: current.sheep.position.y, radius: current.sheep.radius }])
+        .concat(current.wolves.map((wolf) => ({ x: wolf.position.x, y: wolf.position.y, radius: wolf.radius })));
       current.shepherd.update(dt, direction, obstacles);
       current.flock.update(dt);
 
@@ -334,5 +346,5 @@ function spawnWolf(runtime: RuntimeRefs): void {
 
   const wolf = new Wolf({ x, y });
   runtime.wolves.push(wolf);
-  runtime.world.addChild(wolf.sprite.container);
+  runtime.dynamicLayer.addChild(wolf.sprite.container);
 }

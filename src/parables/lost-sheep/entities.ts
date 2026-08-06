@@ -66,27 +66,34 @@ export class Shepherd {
       this.position = clampToBounds(this.position, WORLD_BOUNDS, this.radius);
     }
     this.sprite.container.position.set(this.position.x, this.position.y);
+    this.sprite.container.zIndex = this.position.y;
     applyFacing(this.sprite.body, direction.x);
 
     const target = moving ? 1 : 0;
-    this.walkBlend += (target - this.walkBlend) * Math.min(1, dt * 6);
+    this.walkBlend += (target - this.walkBlend) * Math.min(1, dt * 5);
     this.walkPhase += dt * 9;
     this.idlePhase += dt;
 
-    const legAmp = 0.55 * this.walkBlend;
+    // Smootherstep the blend so the walk cycle eases in/out at the start and
+    // stop of a step instead of ramping linearly.
+    const walkEase = this.walkBlend * this.walkBlend * (3 - 2 * this.walkBlend);
+
+    const legAmp = 0.55 * walkEase;
     this.sprite.leftLeg.rotation = Math.sin(this.walkPhase) * legAmp;
     this.sprite.rightLeg.rotation = -Math.sin(this.walkPhase) * legAmp;
-    this.sprite.frontArm.rotation = -Math.sin(this.walkPhase) * 0.4 * this.walkBlend;
-    const staffWalk = Math.sin(this.walkPhase) * 0.16 * this.walkBlend;
-    const staffIdle = Math.sin(this.idlePhase * 1.3) * 0.06 * (1 - this.walkBlend);
+    this.sprite.frontArm.rotation = -Math.sin(this.walkPhase) * 0.4 * walkEase;
+    const staffWalk = Math.sin(this.walkPhase) * 0.16 * walkEase;
+    const staffIdle = Math.sin(this.idlePhase * 1.3) * 0.06 * (1 - walkEase);
     this.sprite.staffArm.rotation = staffWalk + staffIdle;
-    const bodyBobWalk = Math.sin(this.walkPhase * 2) * 1.1 * this.walkBlend;
-    const bodyBobIdle = Math.sin(this.idlePhase * 2) * 0.4 * (1 - this.walkBlend);
+    const bodyBobWalk = Math.sin(this.walkPhase * 2) * 1.1 * walkEase;
+    const bodyBobIdle = Math.sin(this.idlePhase * 2) * 0.4 * (1 - walkEase);
     this.sprite.body.y = bodyBobWalk + bodyBobIdle;
-    this.sprite.head.rotation = Math.sin(this.idlePhase * 1.7) * 0.05 * (1 - this.walkBlend);
+    const headIdleSway = Math.sin(this.idlePhase * 1.7) * 0.05 * (1 - walkEase);
+    const headWalkNod = Math.sin(this.walkPhase * 2) * 0.02 * walkEase;
+    this.sprite.head.rotation = headIdleSway + headWalkNod;
 
     // Idle breathing: a gentle chest scale pulse, strongest at rest.
-    const breathe = Math.sin(this.idlePhase * 1.8) * 0.02 * (1 - this.walkBlend);
+    const breathe = Math.sin(this.idlePhase * 1.8) * 0.02 * (1 - walkEase);
     this.sprite.torso.scale.set(1 + breathe * 0.6, 1 + breathe);
 
     if (this.staffCooldown > 0) this.staffCooldown -= dt;
@@ -150,6 +157,7 @@ export class LostSheep {
 
     this.position = clampToBounds(this.position, WORLD_BOUNDS, this.radius);
     this.sprite.container.position.set(this.position.x, this.position.y);
+    this.sprite.container.zIndex = this.position.y;
     const moving = Math.hypot(velocity.x, velocity.y) > 0.01;
     applyFacing(this.sprite.body, velocity.x);
 
@@ -245,6 +253,7 @@ export class Wolf {
 
     this.position = clampToBounds(this.position, WORLD_BOUNDS, this.radius);
     this.sprite.container.position.set(this.position.x, this.position.y);
+    this.sprite.container.zIndex = this.position.y;
     const moving = Math.hypot(velocity.x, velocity.y) > 0.01 && this.stunTimer <= 0;
     if (velocity.x > 0.05) this.facing = 1;
     else if (velocity.x < -0.05) this.facing = -1;

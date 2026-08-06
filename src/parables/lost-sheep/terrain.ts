@@ -28,25 +28,73 @@ function drawFlower(g: Graphics, x: number, y: number, variant: (typeof FLOWER_V
   g.circle(x, y, 0.7).fill(center);
 }
 
-/** Builds the large outdoor world the shepherd searches: ground, dappled texture, flowers, scattered trees/bushes/rocks, and a path from the pen. Returns the solid obstacles (tree trunks and large rocks) for collision. */
-export function buildTerrain(world: Container): TerrainObstacle[] {
+export interface TerrainResult {
+  obstacles: TerrainObstacle[];
+  /** A Y-sortable Container (already added to `world`) holding tree canopies and large rocks. The caller should add the shepherd/sheep/wolves/flock into it too, and keep each entity's zIndex equal to its y position, so tall scenery correctly layers in front of or behind moving characters. */
+  dynamicLayer: Container;
+}
+
+/** Builds the large outdoor world the shepherd searches: ground, dappled texture, flowers, scattered trees/bushes/rocks, and a path from the pen. Returns the solid obstacles (tree trunks and large rocks) for collision, plus the Y-sortable layer for depth. */
+export function buildTerrain(world: Container): TerrainResult {
   const ground = new Graphics();
   ground.rect(0, 0, WORLD_WIDTH, WORLD_HEIGHT).fill(hexToNumber(palette.grass.base));
   world.addChild(ground);
 
-  // Dappled light/shade patches, built from soft overlapping blobs.
+  // Three distinct patch "tile" styles — soft blobs, blade tufts, fine
+  // speckle — picked at random per patch so the field never reads as one
+  // pattern tiling across the whole world, while every pass stays low-alpha
+  // and blends into neighbors with no hard edge, so it's still seamless.
   const patchRng = createRng(55);
-  const patchCount = Math.round((WORLD_WIDTH * WORLD_HEIGHT) / 48000);
+  const patchCount = Math.round((WORLD_WIDTH * WORLD_HEIGHT) / 34000);
   for (let i = 0; i < patchCount; i++) {
     const px = patchRng() * WORLD_WIDTH;
     const py = patchRng() * WORLD_HEIGHT;
     const tint = hexToNumber(patchRng() > 0.5 ? palette.grass.light : palette.grass.dark);
-    const blobCount = 2 + Math.floor(patchRng() * 2);
-    for (let b = 0; b < blobCount; b++) {
-      const bx = px + (patchRng() - 0.5) * 26;
-      const by = py + (patchRng() - 0.5) * 16;
-      const br = 8 + patchRng() * 12;
-      ground.circle(bx, by, br).fill({ color: tint, alpha: 0.05 });
+    const variant = Math.floor(patchRng() * 3);
+
+    if (variant === 0) {
+      const blobCount = 2 + Math.floor(patchRng() * 2);
+      for (let b = 0; b < blobCount; b++) {
+        const bx = px + (patchRng() - 0.5) * 26;
+        const by = py + (patchRng() - 0.5) * 16;
+        const br = 8 + patchRng() * 12;
+        ground.circle(bx, by, br).fill({ color: tint, alpha: 0.05 });
+      }
+    } else if (variant === 1) {
+      const bladeCount = 5 + Math.floor(patchRng() * 5);
+      for (let b = 0; b < bladeCount; b++) {
+        const bx = px + (patchRng() - 0.5) * 18;
+        const by = py + (patchRng() - 0.5) * 12;
+        const len = 2.5 + patchRng() * 3;
+        const lean = (patchRng() - 0.5) * 1.6;
+        ground
+          .moveTo(bx, by)
+          .lineTo(bx + lean, by - len)
+          .stroke({ width: 0.7, color: tint, alpha: 0.16 });
+      }
+    } else {
+      const speckleCount = 6 + Math.floor(patchRng() * 6);
+      for (let b = 0; b < speckleCount; b++) {
+        const bx = px + (patchRng() - 0.5) * 20;
+        const by = py + (patchRng() - 0.5) * 14;
+        ground.circle(bx, by, 0.5 + patchRng() * 0.5).fill({ color: tint, alpha: 0.1 });
+      }
+    }
+  }
+
+  // Tiny imperfections — sparse worn/soil freckles so no stretch of ground
+  // ever looks perfectly uniform.
+  const soilRng = createRng(913);
+  const soilColor = hexToNumber("#7d6a45");
+  const soilCount = Math.round((WORLD_WIDTH * WORLD_HEIGHT) / 95000);
+  for (let i = 0; i < soilCount; i++) {
+    const sx = soilRng() * WORLD_WIDTH;
+    const sy = soilRng() * WORLD_HEIGHT;
+    const dotCount = 2 + Math.floor(soilRng() * 3);
+    for (let d = 0; d < dotCount; d++) {
+      const dx = sx + (soilRng() - 0.5) * 6;
+      const dy = sy + (soilRng() - 0.5) * 4;
+      ground.circle(dx, dy, 1 + soilRng() * 1.6).fill({ color: soilColor, alpha: 0.06 });
     }
   }
 
@@ -77,17 +125,23 @@ export function buildTerrain(world: Container): TerrainObstacle[] {
   }
   world.addChild(flowers);
 
-  // Bushes and rocks are ground-hugging and don't need Y-sorting against the
-  // player, so every one of them is batched into two shared Graphics instead
-  // of costing its own draw call. Trees are tall enough that the shepherd
-  // should visually pass in front of near ones and behind far ones, but
-  // sorting each tree as its own display object gets expensive at this
-  // density — instead every tree is drawn into a shared Graphics for its
-  // Y-band (a horizontal slice of the world), and only the ~dozen bands are
-  // depth-sorted. That keeps draw calls low while still getting correct
-  // sorting almost everywhere (it only misses at a band's exact edge).
+  // Bushes and small rocks are ground-hugging and don't need Y-sorting
+  // against the player, so every one of them is batched into two shared
+  // Graphics instead of costing its own draw call. Trees and large rocks are
+  // tall enough that the shepherd should visually pass in front of near ones
+  // and behind far ones: each tree's trunk is drawn into a static, always
+  // below-the-player batch (so the trunk never covers anyone's feet), while
+  // its canopy is drawn into a shared Graphics for its Y-band (a horizontal
+  // slice of the world) inside `dynamicLayer` — a container the caller mixes
+  // the player/sheep/wolves into and sorts by zIndex=y every frame. Only the
+  // ~dozen bands are depth-sorted rather than every tree individually, which
+  // keeps draw calls low while still getting correct sorting almost
+  // everywhere (it only misses at a band's exact edge). Large rocks are rare
+  // enough to sort individually the same way.
   const obstacles: TerrainObstacle[] = [];
-  const propsLayer = new Container();
+  const dynamicLayer = new Container();
+  dynamicLayer.sortableChildren = true;
+  const trunkBatch = new Graphics();
   const bushBatch = new Graphics();
   const rockBatch = new Graphics();
   const treeBandSize = 150;
@@ -108,23 +162,32 @@ export function buildTerrain(world: Container): TerrainObstacle[] {
         band = new Graphics();
         band.zIndex = bandKey * treeBandSize + treeBandSize;
         treeBands.set(bandKey, band);
-        propsLayer.addChild(band);
+        dynamicLayer.addChild(band);
       }
-      buildTree(x, y, rng, band);
+      buildTree(x, y, rng, trunkBatch, band);
       obstacles.push({ x, y: y - 6, radius: 4 });
     } else if (roll < 0.75) {
       buildBush(x, y, rng, bushBatch);
       obstacles.push({ x, y, radius: 3.5 });
     } else {
       const rockScale = 0.7 + rng() * 1.1;
-      buildRock(x, y, rng, rockScale, rockBatch);
-      if (rockScale >= 1.15) obstacles.push({ x, y, radius: 5 * rockScale * 0.7 });
+      if (rockScale >= 1.15) {
+        const rock = buildRock(x, y, rng, rockScale);
+        rock.zIndex = y;
+        dynamicLayer.addChild(rock);
+        obstacles.push({ x, y, radius: 5 * rockScale * 0.7 });
+      } else {
+        buildRock(x, y, rng, rockScale, rockBatch);
+      }
     }
   }
-  propsLayer.sortableChildren = true;
+  world.addChild(trunkBatch);
   world.addChild(bushBatch);
   world.addChild(rockBatch);
-  world.addChild(propsLayer);
+  // `dynamicLayer` is intentionally NOT added to `world` here — the caller
+  // adds it after the fence/flock/mound so those keep rendering below the
+  // player as before, while still letting the player sort correctly against
+  // tree canopies and large rocks within the layer itself.
 
-  return obstacles;
+  return { obstacles, dynamicLayer };
 }
