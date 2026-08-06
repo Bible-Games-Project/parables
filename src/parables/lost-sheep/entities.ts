@@ -118,11 +118,16 @@ export class Shepherd {
 
 export type SheepBehavior = "waiting" | "following";
 
+/** The lost sheep is already hurt when the level starts, at 90% health. */
+export const LOST_SHEEP_START_HP = 90;
+/** How fast the sheep's injury bleeds it out on its own — a full bar (100%) drains in 4 minutes, so the 90% starting health gives roughly 3.6 minutes before it dies of the wound alone. */
+const SHEEP_DRAIN_PER_SECOND = 100 / 240;
+
 export class LostSheep {
   position: Vector2;
   radius = 6;
   maxHp = 100;
-  hp = 100;
+  hp = LOST_SHEEP_START_HP;
   /** Starts "waiting" — motionless on its hill, guarded — until the shepherd finds it and it flees to follow. */
   behavior: SheepBehavior = "waiting";
   sprite: SheepVisual;
@@ -143,7 +148,8 @@ export class LostSheep {
     this.behavior = "following";
   }
 
-  update(dt: number, followTarget: Vector2): void {
+  /** `draining` ticks the sheep's wound down continuously while the level is being played — separate from wolf contact damage, which still applies on top. */
+  update(dt: number, followTarget: Vector2, draining: boolean): void {
     let velocity: Vector2 = { x: 0, y: 0 };
 
     if (this.behavior === "following") {
@@ -153,6 +159,10 @@ export class LostSheep {
         this.position = steerToward(this.position, followTarget, this.followSpeed, dt);
         velocity = { x: this.position.x - before.x, y: this.position.y - before.y };
       }
+    }
+
+    if (draining && this.hp > 0) {
+      this.hp = Math.max(0, this.hp - SHEEP_DRAIN_PER_SECOND * dt);
     }
 
     this.position = clampToBounds(this.position, WORLD_BOUNDS, this.radius);
@@ -186,8 +196,14 @@ export class Wolf {
   speed = 62;
   hp = 30;
   sprite: WolfVisual;
-  /** Guard wolves stand watch, motionless, until the scene activates them (e.g. the player finds the sheep they're guarding). */
+  /** Guard wolves stand watch — slowly circling the sheep they're guarding — until the scene activates them (e.g. the player finds the sheep). */
   guarding = false;
+  /** Point the wolf slowly orbits while `guarding` is true — set by the scene to the lost sheep's position. */
+  patrolCenter?: Vector2;
+  patrolRadius = 28;
+  patrolAngle = 0;
+  /** Radians/second — deliberately slow, so guard wolves read as watching and waiting rather than hunting. */
+  patrolAngularSpeed = 0.15;
 
   private stunTimer = 0;
   private knockback: Vector2 = { x: 0, y: 0 };
@@ -227,16 +243,25 @@ export class Wolf {
     if (this.damageCooldown > 0) this.damageCooldown -= dt;
     if (this.attackFlash > 0) this.attackFlash -= dt;
     let velocity: Vector2 = { x: 0, y: 0 };
-    const effectiveTarget = this.guarding ? undefined : chaseTarget;
 
     if (this.stunTimer > 0) {
       this.stunTimer -= dt;
       this.position.x += this.knockback.x * dt;
       this.position.y += this.knockback.y * dt;
       this.knockback = { x: lerp(this.knockback.x, 0, 0.15), y: lerp(this.knockback.y, 0, 0.15) };
-    } else if (effectiveTarget) {
+    } else if (this.guarding && this.patrolCenter) {
+      // Slowly circle the sheep rather than standing frozen — present, watchful, unhurried.
+      this.patrolAngle += dt * this.patrolAngularSpeed;
+      const target = {
+        x: this.patrolCenter.x + Math.cos(this.patrolAngle) * this.patrolRadius,
+        y: this.patrolCenter.y + Math.sin(this.patrolAngle) * this.patrolRadius,
+      };
       const before = { ...this.position };
-      this.position = steerToward(this.position, effectiveTarget, this.speed, dt);
+      this.position = { x: lerp(this.position.x, target.x, Math.min(1, dt * 3)), y: lerp(this.position.y, target.y, Math.min(1, dt * 3)) };
+      velocity = { x: this.position.x - before.x, y: this.position.y - before.y };
+    } else if (chaseTarget) {
+      const before = { ...this.position };
+      this.position = steerToward(this.position, chaseTarget, this.speed, dt);
       velocity = { x: this.position.x - before.x, y: this.position.y - before.y };
     }
 

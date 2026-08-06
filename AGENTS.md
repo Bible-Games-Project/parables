@@ -124,3 +124,19 @@ bgp-admin at `templates/agent-docs/`, so ask before adding it.
   `parables/registry.ts` are the whole "add a new parable" surface — a second
   parable should only need a new `src/parables/<id>/` folder plus a registry
   entry, no engine changes.
+- Lost Sheep's world layout is driven by a single deterministic S-curve in
+  `map.ts` (`JOURNEY_PATH`, built once from a sine offset around the
+  straight pen→hill line, no randomness). `terrain.ts` reads it to keep a
+  walkable corridor clear and to thicken flanking trees/bushes as `t → 1`;
+  `trail.ts` reads it to lay the fixed footprint/blood trail. If the pen or
+  the lost sheep's fixed spawn (`LOST_SHEEP_START`) ever move, this path and
+  everything anchored to it (landmarks, trail, corridor) recomputes
+  automatically — no other file hardcodes world positions along the route.
+- Playwright smoke-testing this scene: click through Home → "Play" →
+  "The Lost Sheep" → the intro dialogue's "Skip" button (clicking the canvas
+  itself does not advance dialogue). There's no route/URL to jump straight
+  into a scene and no dev-only teleport hook — verify the far side of a
+  large world (e.g. the lost sheep's hill) either by holding movement keys
+  for real (shepherd speed is 100px/s, so cross-map distances take tens of
+  seconds) or by adding a throwaway `keydown` teleport in `onReady` and
+  reverting it before committing, never leaving debug hooks in place.
