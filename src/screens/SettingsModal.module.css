@@ -1,0 +1,25 @@
+.section {
+  margin-bottom: 1.6rem;
+}
+
+.section:last-child {
+  margin-bottom: 0;
+}
+
+.sectionTitle {
+  font-size: 0.75rem;
+  color: #e8b23d;
+  text-shadow: 2px 2px 0 rgba(0, 0, 0, 0.4);
+  letter-spacing: 0.04em;
+  margin-bottom: 0.7rem;
+}
+
+.languageGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.6rem;
+}
+
+.languageOption {
+  width: 100%;
+}

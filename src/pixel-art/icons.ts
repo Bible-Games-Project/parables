@@ -4,7 +4,7 @@ import type { PixelGridSprite } from "@/pixel-art/pixelGrid";
 // '#' = primary fill, 'o' = outline / shade, '.' = transparent.
 
 export const gearIcon: PixelGridSprite = {
-  legend: { "#": palette.gold, o: palette.goldDark },
+  legend: { "#": palette.gold, o: palette.ink },
   rows: [
     "...oo..oo...",
     "..o##o.o##o.",
@@ -18,23 +18,6 @@ export const gearIcon: PixelGridSprite = {
     "...########.",
     "..o##o.o##o.",
     "...oo..oo...",
-  ],
-};
-
-export const globeIcon: PixelGridSprite = {
-  legend: { "#": palette.parchment, o: palette.ink },
-  rows: [
-    "....oooo....",
-    "..o######o..",
-    ".o##o###o##.",
-    "o##########o",
-    "o##########o",
-    "o##########o",
-    "o##########o",
-    "o##########o",
-    ".o##o###o##.",
-    "..o######o..",
-    "....oooo....",
   ],
 };
 

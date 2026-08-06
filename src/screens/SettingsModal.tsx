@@ -1,8 +1,11 @@
 import { Modal } from "@/ui/Modal";
+import { PixelButton } from "@/ui/PixelButton";
 import { PixelSlider } from "@/ui/PixelSlider";
 import { PixelToggle } from "@/ui/PixelToggle";
 import { useT } from "@/locales/useT";
 import { useSettingsStore } from "@/store/settingsStore";
+import { LOCALE_CODES, LOCALE_NAMES } from "@/locales/i18n";
+import styles from "@/screens/SettingsModal.module.css";
 
 interface SettingsModalProps {
   onClose: () => void;
@@ -10,21 +13,36 @@ interface SettingsModalProps {
 
 export function SettingsModal({ onClose }: SettingsModalProps) {
   const t = useT();
-  const musicVolume = useSettingsStore((state) => state.musicVolume);
-  const soundVolume = useSettingsStore((state) => state.soundVolume);
-  const musicEnabled = useSettingsStore((state) => state.musicEnabled);
-  const soundEnabled = useSettingsStore((state) => state.soundEnabled);
-  const setMusicVolume = useSettingsStore((state) => state.setMusicVolume);
-  const setSoundVolume = useSettingsStore((state) => state.setSoundVolume);
-  const toggleMusic = useSettingsStore((state) => state.toggleMusic);
-  const toggleSound = useSettingsStore((state) => state.toggleSound);
+  const locale = useSettingsStore((state) => state.locale);
+  const setLocale = useSettingsStore((state) => state.setLocale);
+  const audioEnabled = useSettingsStore((state) => state.audioEnabled);
+  const volume = useSettingsStore((state) => state.volume);
+  const toggleAudio = useSettingsStore((state) => state.toggleAudio);
+  const setVolume = useSettingsStore((state) => state.setVolume);
 
   return (
     <Modal title={t("settings.title")} onClose={onClose} seed="settings-modal">
-      <PixelSlider label={t("settings.musicVolume")} value={musicVolume} onChange={setMusicVolume} />
-      <PixelSlider label={t("settings.soundVolume")} value={soundVolume} onChange={setSoundVolume} />
-      <PixelToggle label={t("settings.music")} on={musicEnabled} onToggle={toggleMusic} />
-      <PixelToggle label={t("settings.sound")} on={soundEnabled} onToggle={toggleSound} />
+      <div className={styles.section}>
+        <div className={styles.sectionTitle}>{t("language.title")}</div>
+        <div className={styles.languageGrid}>
+          {LOCALE_CODES.map((code) => (
+            <PixelButton
+              key={code}
+              className={styles.languageOption}
+              disabled={code === locale}
+              onClick={() => setLocale(code)}
+            >
+              {LOCALE_NAMES[code]}
+            </PixelButton>
+          ))}
+        </div>
+      </div>
+
+      <div className={styles.section}>
+        <div className={styles.sectionTitle}>{t("settings.audio")}</div>
+        <PixelToggle label={t("settings.music")} on={audioEnabled} onToggle={toggleAudio} />
+        <PixelSlider label={t("settings.volume")} value={volume} onChange={setVolume} disabled={!audioEnabled} />
+      </div>
     </Modal>
   );
 }

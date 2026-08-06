@@ -76,6 +76,11 @@ function drawSky(root: Container): void {
         : lerpColor(palette.sky.dusk[1], palette.sky.dusk[2], (t - 0.55) / 0.45);
     sky.rect(0, i * stepHeight, VIRTUAL_WIDTH, stepHeight + 1).fill(color);
   }
+  // The far hill's silhouette dips below the horizon line on its low side
+  // (deepest on the left) — extend the horizon color a little further down
+  // so there's never a gap between the sky and the hill's curve.
+  const horizonColor = lerpColor(palette.sky.dusk[1], palette.sky.dusk[2], 1);
+  sky.rect(0, HORIZON, VIRTUAL_WIDTH, 40).fill(horizonColor);
   root.addChild(sky);
 }
 

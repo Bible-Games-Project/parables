@@ -46,11 +46,15 @@ export function PixiStage({ onReady, className }: PixiStageProps) {
         canvas.style.display = "block";
         host.appendChild(canvas);
 
+        // Cover-scale (not contain/fit): the canvas always fills the whole
+        // host, cropping whichever axis has spare room, so no aspect ratio
+        // ever shows a black letterbox bar. The host's overflow:hidden below
+        // clips the overflow.
         const resize = () => {
           const rect = host.getBoundingClientRect();
           const scale = Math.max(
             1,
-            Math.floor(Math.min(rect.width / VIRTUAL_WIDTH, rect.height / VIRTUAL_HEIGHT) * 4) / 4,
+            Math.ceil(Math.max(rect.width / VIRTUAL_WIDTH, rect.height / VIRTUAL_HEIGHT) * 4) / 4,
           );
           canvas.style.width = `${VIRTUAL_WIDTH * scale}px`;
           canvas.style.height = `${VIRTUAL_HEIGHT * scale}px`;

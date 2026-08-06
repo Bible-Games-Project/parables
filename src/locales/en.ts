@@ -7,12 +7,9 @@ export const en = {
   "home.premium": "Premium",
 
   "settings.title": "Settings",
-  "settings.musicVolume": "Music Volume",
-  "settings.soundVolume": "Sound Volume",
+  "settings.audio": "Audio",
   "settings.music": "Music",
-  "settings.sound": "Sound Effects",
-  "settings.on": "On",
-  "settings.off": "Off",
+  "settings.volume": "Volume",
 
   "language.title": "Language",
 

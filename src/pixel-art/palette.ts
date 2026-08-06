@@ -6,12 +6,13 @@
  * so foliage, ground and UI all read as lit by the same light.
  */
 export const palette = {
+  /** Derived straight from the sky's own horizon gold (sky.dusk[2]) so the wooden UI reads as lit by the same sunset, not a generic unrelated brown. */
   wood: {
-    darker: "#2e1f22",
-    dark: "#54372c",
-    base: "#8a5c3e",
-    light: "#c1894f",
-    highlight: "#f0c179",
+    darker: "#5a341a",
+    dark: "#8f5726",
+    base: "#c97f3f",
+    light: "#f0ab5e",
+    highlight: "#ffd9a0",
   },
   woodDisabled: {
     darker: "#2b2b2b",
@@ -26,8 +27,8 @@ export const palette = {
   gold: "#e8b23d",
   goldDark: "#b8811f",
   grass: {
-    dark: "#2c4a3f",
-    base: "#6b8f45",
+    dark: "#5b6a4a",
+    base: "#a5c187",
     light: "#c7d977",
   },
   foliage: {

@@ -4,30 +4,22 @@ import { DEFAULT_LOCALE, type LocaleCode } from "@/locales/i18n";
 
 interface SettingsState {
   locale: LocaleCode;
-  musicVolume: number;
-  soundVolume: number;
-  musicEnabled: boolean;
-  soundEnabled: boolean;
+  audioEnabled: boolean;
+  volume: number;
   setLocale: (locale: LocaleCode) => void;
-  setMusicVolume: (volume: number) => void;
-  setSoundVolume: (volume: number) => void;
-  toggleMusic: () => void;
-  toggleSound: () => void;
+  setVolume: (volume: number) => void;
+  toggleAudio: () => void;
 }
 
 export const useSettingsStore = create<SettingsState>()(
   persist(
     (set) => ({
       locale: DEFAULT_LOCALE,
-      musicVolume: 0.6,
-      soundVolume: 0.8,
-      musicEnabled: true,
-      soundEnabled: true,
+      audioEnabled: true,
+      volume: 0.7,
       setLocale: (locale) => set({ locale }),
-      setMusicVolume: (musicVolume) => set({ musicVolume: clamp01(musicVolume) }),
-      setSoundVolume: (soundVolume) => set({ soundVolume: clamp01(soundVolume) }),
-      toggleMusic: () => set((state) => ({ musicEnabled: !state.musicEnabled })),
-      toggleSound: () => set((state) => ({ soundEnabled: !state.soundEnabled })),
+      setVolume: (volume) => set({ volume: clamp01(volume) }),
+      toggleAudio: () => set((state) => ({ audioEnabled: !state.audioEnabled })),
     }),
     { name: "bible-parables-settings" },
   ),
