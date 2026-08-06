@@ -9,19 +9,23 @@ import { createNightOverlay, type NightOverlay } from "@/engine/nightOverlay";
 import { circleOverlapsRect, circlesOverlap, distance, resolveCircleVsRect, type CircleObstacle } from "@/engine/collision";
 import { pickNearestTarget } from "@/engine/chaseAI";
 import { createMissionMachine } from "@/engine/missionMachine";
-import { Shepherd, LostSheep, Wolf } from "@/parables/lost-sheep/entities";
+import { Shepherd, LostSheep, Wolf, LOST_SHEEP_START_HP } from "@/parables/lost-sheep/entities";
 import { createFenceOutline } from "@/parables/lost-sheep/sprites";
 import { Flock } from "@/parables/lost-sheep/flock";
 import { buildTerrain, type TerrainObstacle } from "@/parables/lost-sheep/terrain";
+import { buildJourneyTrail } from "@/parables/lost-sheep/trail";
+import { buildRock } from "@/pixel-art/foliage";
+import { createRng } from "@/pixel-art/prng";
 import {
   FLOCK_COUNT,
   GATE,
+  JOURNEY_PATH,
+  LOST_SHEEP_START,
   PEN,
   PEN_CENTER,
   SHEPHERD_START,
   WORLD_HEIGHT,
   WORLD_WIDTH,
-  pickLostSheepSpawn,
 } from "@/parables/lost-sheep/map";
 import type { LostSheepMissionState } from "@/parables/lost-sheep/missionState";
 import { LostSheepHud } from "@/parables/lost-sheep/LostSheepHud";
@@ -43,13 +47,25 @@ const ESCORT_WOLF_CAP = 5;
 const GUARD_WOLF_COUNT = 3;
 const GUARD_WOLF_DISTANCE = 26;
 
-/** A small raised mound of ground the lost sheep waits on — purely decorative, no gameplay elevation. */
-function drawMound(x: number, y: number): Graphics {
+/**
+ * The small rocky hill the lost sheep waits on — a raised grass mound with
+ * rock outcrops embedded at its base, purely decorative (no gameplay
+ * elevation). Deterministic seed so the hill looks identical every run.
+ */
+function drawHill(x: number, y: number): Graphics {
   const g = new Graphics();
-  g.ellipse(x, y + 5, 34, 15).fill({ color: hexToNumber(palette.foliage.shadow), alpha: 0.35 });
-  g.ellipse(x, y + 2, 31, 17).fill(hexToNumber(palette.grass.dark));
-  g.ellipse(x, y, 27, 14).fill(hexToNumber(palette.grass.base));
-  g.ellipse(x - 5, y - 4, 16, 8).fill({ color: hexToNumber(palette.grass.light), alpha: 0.55 });
+  g.ellipse(x, y + 7, 42, 19).fill({ color: hexToNumber(palette.foliage.shadow), alpha: 0.35 });
+  g.ellipse(x, y + 3, 38, 21).fill(hexToNumber(palette.grass.dark));
+  g.ellipse(x, y, 33, 17).fill(hexToNumber(palette.grass.base));
+  g.ellipse(x - 6, y - 5, 19, 9).fill({ color: hexToNumber(palette.grass.light), alpha: 0.55 });
+
+  const rng = createRng(1212);
+  const rockAnglesOnHill = [-2.4, -0.6, 1.1, 2.6];
+  for (const angle of rockAnglesOnHill) {
+    const rx = x + Math.cos(angle) * (26 + rng() * 6);
+    const ry = y + Math.sin(angle) * (13 + rng() * 3);
+    buildRock(rx, ry, rng, 0.55 + rng() * 0.35, g);
+  }
   return g;
 }
 
@@ -84,12 +100,14 @@ export function LostSheepScene({ onExit, onRetry }: LostSheepSceneProps) {
 
   const runtimeRef = useRef<RuntimeRefs | null>(null);
   const [missionState, setMissionState] = useState<LostSheepMissionState>("intro");
-  const [hud, setHud] = useState({ shepherdHp: 100, sheepHp: 100 });
+  const [hud, setHud] = useState({ shepherdHp: 100, sheepHp: LOST_SHEEP_START_HP });
 
   const onReady = useCallback((app: Application) => {
     const world = new Container();
     app.stage.addChild(world);
     const { obstacles: terrainObstacles, dynamicLayer } = buildTerrain(world);
+
+    buildJourneyTrail(world, JOURNEY_PATH);
 
     const fence = createFenceOutline(PEN.width, PEN.height, { x: GATE.x - PEN.x, width: GATE.width });
     fence.position.set(PEN.x, PEN.y);
@@ -104,14 +122,14 @@ export function LostSheepScene({ onExit, onRetry }: LostSheepSceneProps) {
     world.addChild(dynamicLayer);
 
     const shepherd = new Shepherd(SHEPHERD_START);
-    const sheepSpawn = pickLostSheepSpawn();
+    const sheepSpawn = LOST_SHEEP_START;
     const sheep = new LostSheep(sheepSpawn);
-    world.addChild(drawMound(sheepSpawn.x, sheepSpawn.y));
+    world.addChild(drawHill(sheepSpawn.x, sheepSpawn.y));
     dynamicLayer.addChild(sheep.sprite.container);
     dynamicLayer.addChild(shepherd.sprite.container);
 
-    // Three wolves keep watch at the foot of the hill, motionless, until the
-    // shepherd gets close enough to find the sheep they're guarding.
+    // Three wolves keep watch at the foot of the hill, slowly circling the
+    // sheep they're guarding, until the shepherd gets close enough to find it.
     const guardWolves: Wolf[] = [];
     for (let i = 0; i < GUARD_WOLF_COUNT; i++) {
       const angle = (i / GUARD_WOLF_COUNT) * Math.PI * 2 + Math.PI / 2;
@@ -120,6 +138,10 @@ export function LostSheepScene({ onExit, onRetry }: LostSheepSceneProps) {
         y: sheepSpawn.y + Math.sin(angle) * GUARD_WOLF_DISTANCE + 6,
       });
       wolf.guarding = true;
+      wolf.patrolCenter = sheepSpawn;
+      wolf.patrolRadius = GUARD_WOLF_DISTANCE + i * 3;
+      wolf.patrolAngle = angle;
+      wolf.patrolAngularSpeed = 0.12 + i * 0.025;
       guardWolves.push(wolf);
       dynamicLayer.addChild(wolf.sprite.container);
     }
@@ -158,7 +180,7 @@ export function LostSheepScene({ onExit, onRetry }: LostSheepSceneProps) {
       if (current.shepherd.swingStaff()) current.hitThisSwing.clear();
     });
 
-    let lastHudSent = { shepherdHp: 100, sheepHp: 100 };
+    let lastHudSent = { shepherdHp: 100, sheepHp: LOST_SHEEP_START_HP };
 
     const tick = (ticker: { deltaTime: number }) => {
       const current = runtimeRef.current;
@@ -178,7 +200,7 @@ export function LostSheepScene({ onExit, onRetry }: LostSheepSceneProps) {
       current.flock.update(dt);
 
       if (state !== "intro") {
-        current.sheep.update(dt, current.shepherd.position);
+        current.sheep.update(dt, current.shepherd.position, playing);
       }
 
       current.camera.update(current.shepherd.position, dt);

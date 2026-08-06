@@ -3,7 +3,10 @@ import { hexToNumber } from "@/pixel-art/color";
 import { createRng } from "@/pixel-art/prng";
 import { palette } from "@/pixel-art/palette";
 import { buildBush, buildRock, buildTree } from "@/pixel-art/foliage";
-import { PEN, WORLD_HEIGHT, WORLD_WIDTH } from "@/parables/lost-sheep/map";
+import { JOURNEY_PATH, PEN, WORLD_HEIGHT, WORLD_WIDTH, journeyAt, nearestJourneyPoint } from "@/parables/lost-sheep/map";
+
+/** How close to the rescue route's centerline nothing is allowed to grow — keeps the S-curve walkable end to end. */
+const CORRIDOR_CLEAR = 58;
 
 export interface TerrainObstacle {
   x: number;
@@ -98,19 +101,8 @@ export function buildTerrain(world: Container): TerrainResult {
     }
   }
 
-  const path = new Graphics();
-  path
-    .moveTo(PEN.x + PEN.width / 2, PEN.y)
-    .bezierCurveTo(
-      PEN.x + PEN.width / 2 - 40,
-      PEN.y - 160,
-      PEN.x + 120,
-      PEN.y - 340,
-      PEN.x + 220,
-      PEN.y - 520,
-    )
-    .stroke({ width: 18, color: 0xc7a874, alpha: 0.3, cap: "round" });
-  world.addChild(path);
+  // The worn dirt path and the footprint/blood trail along the rescue route
+  // are drawn later by `buildJourneyTrail`, once the ground beneath them exists.
 
   // Flowers, scattered thinly across the whole field (avoiding the pen) — one shared Graphics, no per-flower draw call.
   const flowerRng = createRng(31);
@@ -153,6 +145,7 @@ export function buildTerrain(world: Container): TerrainResult {
     const y = rng() * WORLD_HEIGHT;
     const withinPen = x > PEN.x - 50 && x < PEN.x + PEN.width + 50 && y > PEN.y - 50 && y < PEN.y + PEN.height + 50;
     if (withinPen) continue;
+    if (nearestJourneyPoint(x, y).distance < CORRIDOR_CLEAR) continue;
 
     const roll = rng();
     if (roll < 0.4) {
@@ -181,6 +174,118 @@ export function buildTerrain(world: Container): TerrainResult {
       }
     }
   }
+  // Flanking terrain along the rescue route: sparse near the pen, thickening
+  // into real forest by the time the route reaches the sheep's hill, so the
+  // player is visually funneled along the S-curve without ever hitting a
+  // wall — the environment guides instead of blocking.
+  const FLANK_MIN = CORRIDOR_CLEAR + 14;
+  const FLANK_MAX = CORRIDOR_CLEAR + 95;
+  const flankRng = createRng(4242);
+  for (const p of JOURNEY_PATH) {
+    if (p.t < 0.05 || p.t > 0.92) continue; // leave the pen approach and the hill clearing open
+    for (const side of [-1, 1] as const) {
+      const density = 0.16 + 0.6 * p.t;
+      if (flankRng() > density) continue;
+      const off = FLANK_MIN + flankRng() * (FLANK_MAX - FLANK_MIN);
+      const x = p.x + p.nx * off * side;
+      const y = p.y + p.ny * off * side;
+      if (x < 20 || x > WORLD_WIDTH - 20 || y < 20 || y > WORLD_HEIGHT - 20) continue;
+      if (x > PEN.x - 50 && x < PEN.x + PEN.width + 50 && y > PEN.y - 50 && y < PEN.y + PEN.height + 50) continue;
+
+      const treeChance = 0.3 + 0.5 * p.t;
+      if (flankRng() < treeChance) {
+        const bandKey = Math.floor(y / treeBandSize);
+        let band = treeBands.get(bandKey);
+        if (!band) {
+          band = new Graphics();
+          band.zIndex = bandKey * treeBandSize + treeBandSize;
+          treeBands.set(bandKey, band);
+          dynamicLayer.addChild(band);
+        }
+        buildTree(x, y, flankRng, trunkBatch, band);
+        obstacles.push({ x, y: y - 6, radius: 4 });
+      } else {
+        buildBush(x, y, flankRng, bushBatch);
+        obstacles.push({ x, y, radius: 3.5 });
+      }
+    }
+  }
+
+  // Four handcrafted landmarks along the route — a rock formation at the
+  // first bend, a grassy rise the route curves around at the second, the
+  // last broken fence post before the wilderness closes in, and a rocky
+  // cliff face guarding the final approach to the hill. Each nudges the
+  // player along the intended line without ever blocking it outright.
+  {
+    const anchor = journeyAt(0.24);
+    const cx = anchor.x + anchor.nx * 75;
+    const cy = anchor.y + anchor.ny * 75;
+    const clusterRng = createRng(8181);
+    for (let i = 0; i < 6; i++) {
+      const jx = cx + (clusterRng() - 0.5) * 46;
+      const jy = cy + (clusterRng() - 0.5) * 30;
+      const scale = 1.1 + clusterRng() * 0.9;
+      const rock = buildRock(jx, jy, clusterRng, scale);
+      rock.zIndex = jy;
+      dynamicLayer.addChild(rock);
+      obstacles.push({ x: jx, y: jy, radius: 5 * scale * 0.7 });
+    }
+  }
+
+  {
+    const anchor = journeyAt(0.5);
+    const cx = anchor.x - anchor.nx * 95;
+    const cy = anchor.y - anchor.ny * 95;
+    const mound = new Graphics();
+    mound.ellipse(cx, cy + 8, 46, 20).fill({ color: hexToNumber(palette.foliage.shadow), alpha: 0.3 });
+    mound.ellipse(cx, cy + 3, 42, 23).fill(hexToNumber(palette.grass.dark));
+    mound.ellipse(cx, cy, 36, 19).fill(hexToNumber(palette.grass.base));
+    mound.ellipse(cx - 8, cy - 5, 20, 10).fill({ color: hexToNumber(palette.grass.light), alpha: 0.5 });
+    world.addChild(mound);
+    const hillRng = createRng(3355);
+    for (let i = 0; i < 3; i++) {
+      const rx = cx + (hillRng() - 0.5) * 40;
+      const ry = cy + (hillRng() - 0.5) * 18;
+      buildRock(rx, ry, hillRng, 0.6 + hillRng() * 0.3, rockBatch);
+    }
+  }
+
+  {
+    const anchor = journeyAt(0.68);
+    const baseX = anchor.x + anchor.nx * 62;
+    const baseY = anchor.y + anchor.ny * 62;
+    const tx = anchor.ny;
+    const ty = -anchor.nx;
+    const fenceRemnant = new Graphics();
+    const postRng = createRng(6060);
+    for (let i = 0; i < 4; i++) {
+      const px = baseX + tx * i * 16;
+      const py = baseY + ty * i * 16;
+      const height = i === 2 ? 6 : 11 + postRng() * 3; // one post snapped off short — the fence gave out here
+      fenceRemnant.rect(px - 1.5, py - height, 3, height).fill(hexToNumber(palette.fence.dark));
+      fenceRemnant.rect(px - 1.5, py - height, 1.2, height).fill(hexToNumber(palette.fence.mid));
+    }
+    world.addChild(fenceRemnant);
+  }
+
+  {
+    const anchor = journeyAt(0.85);
+    const tx = anchor.ny;
+    const ty = -anchor.nx;
+    const cliffRng = createRng(9090);
+    const rockCount = 8;
+    for (let i = 0; i < rockCount; i++) {
+      const along = (i - rockCount / 2) * 22;
+      const cx = anchor.x - anchor.nx * 70 + tx * along;
+      const cy = anchor.y - anchor.ny * 70 + ty * along;
+      const scale = 1.3 + cliffRng() * 1.1;
+      const rock = buildRock(cx, cy, cliffRng, scale);
+      rock.zIndex = cy;
+      dynamicLayer.addChild(rock);
+      obstacles.push({ x: cx, y: cy, radius: 5 * scale * 0.7 });
+    }
+  }
+
   world.addChild(trunkBatch);
   world.addChild(bushBatch);
   world.addChild(rockBatch);
