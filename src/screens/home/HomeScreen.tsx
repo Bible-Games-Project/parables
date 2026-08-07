@@ -41,7 +41,7 @@ export function HomeScreen() {
           <h1 className={styles.title}>{t("home.title")}</h1>
 
           <div className={styles.menu}>
-            <PixelButton size="large" onClick={() => navigate("parablesMenu")}>
+            <PixelButton size="large" onClick={() => navigate("israel")}>
               {t("home.play")}
             </PixelButton>
             <PixelButton size="large" onClick={() => navigate("moreGames")}>

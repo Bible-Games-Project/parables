@@ -21,7 +21,8 @@ export const en = {
   "premium.comingSoon": "Coming soon",
   "premium.subtitle": "Unlock exclusive parables and content soon.",
 
-  "parablesMenu.title": "Parables",
+  "parablesMenu.title": "Book of Parables",
+  "parablesMenu.replay": "Replay",
 
   "parable.lostSheep.title": "The Lost Sheep",
   "parable.goodSamaritan.title": "The Good Samaritan",
@@ -42,6 +43,14 @@ export const en = {
   "common.close": "Close",
   "common.continue": "Continue",
   "common.skip": "Skip",
+  "common.talk": "Talk",
+
+  "world.bookButton": "Book of Parables",
+  "world.encounter.lostSheep.line1": "A shepherd paces beside his pen, counting his flock again and again.",
+  "world.encounter.lostSheep.line2":
+    "“Teacher, please... one of my sheep is missing. I fear the wolves have found her first.”",
+  "world.encounter.lostSheep.line3":
+    "Jesus rests a hand on his shoulder. “Then let me show you what your Father would do.”",
 
   "lostSheep.intro.line1": "The shepherd watches over ninety-nine sheep, safe in their fold.",
   "lostSheep.intro.line2": "But one little sheep has wandered off, alone.",

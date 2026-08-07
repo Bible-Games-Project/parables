@@ -105,6 +105,21 @@ export const backIcon: PixelGridSprite = {
   ],
 };
 
+export const bookIcon: PixelGridSprite = {
+  legend: { "#": palette.wood.base, o: palette.wood.darker, g: palette.gold },
+  rows: [
+    "..............",
+    ".oooooooooooo.",
+    ".o##g#######o.",
+    ".o##g#######o.",
+    ".o##g#######o.",
+    ".o##g#######o.",
+    ".o##g#######o.",
+    ".oooooooooooo.",
+    "..............",
+  ],
+};
+
 export const starIcon: PixelGridSprite = {
   legend: { "#": palette.gold, o: palette.goldDark },
   rows: [

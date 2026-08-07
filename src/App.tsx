@@ -4,6 +4,7 @@ import { MoreGamesScreen } from "@/screens/MoreGamesScreen";
 import { PremiumScreen } from "@/screens/PremiumScreen";
 import { ParablesMenuScreen } from "@/screens/parablesMenu/ParablesMenuScreen";
 import { ParableScreen } from "@/screens/ParableScreen";
+import { IsraelScreen } from "@/world/IsraelScreen";
 
 export default function App() {
   const screen = useAppStore((state) => state.screen);
@@ -15,6 +16,8 @@ export default function App() {
       return <MoreGamesScreen />;
     case "premium":
       return <PremiumScreen />;
+    case "israel":
+      return <IsraelScreen />;
     case "parablesMenu":
       return <ParablesMenuScreen />;
     case "parable":

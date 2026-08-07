@@ -22,6 +22,7 @@
 
 .row:disabled {
   cursor: not-allowed;
+  filter: grayscale(0.9) opacity(0.72);
 }
 
 .row:focus-visible {
@@ -58,4 +59,9 @@
   font-size: 0.62rem;
   color: #cdeec0;
   flex-shrink: 0;
+}
+
+.replay {
+  color: #f5e6c8;
+  text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.4);
 }

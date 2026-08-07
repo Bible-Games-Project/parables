@@ -40,8 +40,8 @@ import { PixelIconButton } from "@/ui/PixelIconButton";
 import { backIcon } from "@/pixel-art/icons";
 import { useT } from "@/locales/useT";
 import type { LocaleKey } from "@/locales/en";
-import { useProgressStore } from "@/store/progressStore";
-import { getNextParableId } from "@/parables/registry";
+import type { ParableSceneProps } from "@/parables/registry";
+import { computeStars } from "@/world/scoring";
 
 const RETURN_RADIUS = 46;
 const FOUND_RADIUS = 34;
@@ -57,6 +57,9 @@ const BLOOD_DISCOVERY_RADIUS = 26;
 const LIGHT_RADIUS_START = 70;
 const LIGHT_RADIUS_MIN = 46;
 const LIGHT_SHRINK_DURATION = 240;
+/** Star pacing: a rescue finished within this many seconds of active play earns full marks on speed; at or beyond the slow threshold, speed contributes nothing. */
+const STAR_FAST_SECONDS = 70;
+const STAR_SLOW_SECONDS = 220;
 
 /**
  * The lost sheep's special elevated area — a rocky, mostly-exposed ledge
@@ -191,22 +194,20 @@ interface RuntimeRefs {
   firstBloodShown: boolean;
   toastActive: boolean;
   pendingToasts: LocaleKey[];
+  /** Seconds spent actively playing (search + escort) — used only to grade the run's stars, never gates or slows anything. */
+  elapsedPlaying: number;
+  finalStars: 1 | 2 | 3 | null;
 }
 
-interface LostSheepSceneProps {
-  onExit: () => void;
-  onRetry: () => void;
-}
-
-export function LostSheepScene({ onExit, onRetry }: LostSheepSceneProps) {
+export function LostSheepScene({ onExit, onRetry, onVictory }: ParableSceneProps) {
   const t = useT();
-  const completeParable = useProgressStore((state) => state.completeParable);
-  const unlockParable = useProgressStore((state) => state.unlockParable);
 
   const runtimeRef = useRef<RuntimeRefs | null>(null);
   const [missionState, setMissionState] = useState<LostSheepMissionState>("intro");
   const [hud, setHud] = useState({ shepherdHp: 100, sheepHp: LOST_SHEEP_START_HP });
   const [sheepDanger, setSheepDanger] = useState(false);
+  const [finalStars, setFinalStars] = useState<1 | 2 | 3>(1);
+  const reportedVictoryRef = useRef(false);
   const [toastLine, setToastLine] = useState<LocaleKey | null>(null);
 
   const onReady = useCallback((app: Application) => {
@@ -309,6 +310,8 @@ export function LostSheepScene({ onExit, onRetry }: LostSheepSceneProps) {
       firstBloodShown: false,
       toastActive: false,
       pendingToasts: [],
+      elapsedPlaying: 0,
+      finalStars: null,
     };
     runtimeRef.current = runtime;
 
@@ -356,6 +359,8 @@ export function LostSheepScene({ onExit, onRetry }: LostSheepSceneProps) {
       current.night.setFollowPosition(current.shepherd.getLanternScreenPosition());
 
       if (playing) {
+        current.elapsedPlaying += dt;
+
         // The lantern's light very slowly closes in over the whole level — subtle, but it never stops tightening.
         current.lightRadius = Math.max(
           LIGHT_RADIUS_MIN,
@@ -473,6 +478,8 @@ export function LostSheepScene({ onExit, onRetry }: LostSheepSceneProps) {
         if (current.shepherd.hp <= 0 || current.sheep.hp <= 0) {
           current.mission.set("gameOver");
         } else if (state === "escort" && distance(current.shepherd.position, PEN_CENTER) < RETURN_RADIUS) {
+          const healthRatio = (current.shepherd.hp / 100 + current.sheep.hp / 100) / 2;
+          current.finalStars = computeStars(healthRatio, current.elapsedPlaying, STAR_FAST_SECONDS, STAR_SLOW_SECONDS);
           current.mission.set("victory");
         }
       }
@@ -502,11 +509,15 @@ export function LostSheepScene({ onExit, onRetry }: LostSheepSceneProps) {
   }, []);
 
   useEffect(() => {
-    if (missionState !== "victory") return;
-    completeParable("lost-sheep");
-    const next = getNextParableId("lost-sheep");
-    if (next) unlockParable(next);
-  }, [missionState, completeParable, unlockParable]);
+    if (missionState !== "victory" || reportedVictoryRef.current) return;
+    reportedVictoryRef.current = true;
+    const stars = runtimeRef.current?.finalStars ?? 1;
+    const timeSeconds = runtimeRef.current?.elapsedPlaying;
+    setFinalStars(stars);
+    onVictory({ stars, timeSeconds });
+    // onVictory/onRetry are recreated every ParableScreen render; the ref guard above is what actually prevents a double report, so they're deliberately left out of the dependency list.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [missionState]);
 
   const handleDialogueComplete = () => {
     runtimeRef.current?.mission.set("search");
@@ -550,7 +561,7 @@ export function LostSheepScene({ onExit, onRetry }: LostSheepSceneProps) {
       )}
 
       {missionState === "gameOver" && <GameOverOverlay onRetry={onRetry} />}
-      {missionState === "victory" && <VictoryOverlay onContinue={onExit} />}
+      {missionState === "victory" && <VictoryOverlay onContinue={onExit} stars={finalStars} />}
     </div>
   );
 }

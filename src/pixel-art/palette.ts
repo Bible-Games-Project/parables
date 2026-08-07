@@ -45,6 +45,30 @@ export const palette = {
     mid: "#7fa653",
     highlight: "#d7e28a",
   },
+  /** A cooler, silvery-sage canopy reserved for olive trees, so groves read distinctly from the general forest without leaving the warm-pastel family. */
+  oliveFoliage: {
+    shadow: "#4a5a45",
+    base: "#7d9271",
+    mid: "#a3b58e",
+    highlight: "#dbe4c0",
+  },
+  /** Warm clay walls and a terracotta roof for small houses in Israel. */
+  clay: {
+    shadow: "#a8674a",
+    base: "#d99a72",
+    highlight: "#f0c299",
+  },
+  roofTile: {
+    shadow: "#7a3a2c",
+    base: "#b5563c",
+    highlight: "#dd8560",
+  },
+  /** Golden wheat, for field texture. */
+  wheat: {
+    shadow: "#b98a34",
+    base: "#e3c264",
+    highlight: "#f5e29a",
+  },
   cloud: {
     shadow: "#8f8bb0",
     base: "#fdf3e2",
@@ -109,6 +133,30 @@ export const palette = {
     shadow: "#8a4a37",
     base: "#bd6a45",
     highlight: "#e0a06a",
+  },
+  /** Jesus's robe — a warm off-white, never stark/saturated, to stay inside the same warm-pastel family as everything else. */
+  jesusRobe: {
+    shadow: "#d9cdb8",
+    base: "#f7f0e2",
+    highlight: "#fffbf2",
+  },
+  /** Jesus's mantle — a muted brick red, desaturated so it reads as an accent, not a saturated pop. */
+  jesusMantle: {
+    shadow: "#8a3a30",
+    base: "#c05a48",
+    highlight: "#dd9078",
+  },
+  /** A soft sage-green robe for farmer/field NPCs, keeping the same pastel family as the rest of the cast. */
+  farmerRobe: {
+    shadow: "#8a9a5c",
+    base: "#b9c98a",
+    highlight: "#dbe6b8",
+  },
+  /** A cool, muted blue-grey robe for fisherman/traveller NPCs — the one place ambient NPCs lean cool, still desaturated. */
+  fishermanRobe: {
+    shadow: "#5c7a86",
+    base: "#8fabb6",
+    highlight: "#c3d6dc",
   },
   wool: {
     shadow: "#cbb98f",
