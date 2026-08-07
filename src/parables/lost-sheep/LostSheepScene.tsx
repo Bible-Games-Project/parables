@@ -23,6 +23,10 @@ import {
   LOST_SHEEP_START,
   PEN,
   PEN_CENTER,
+  PEN_DETAIL_OBSTACLES,
+  PEN_EXTENSION,
+  SENTINEL_WOLVES,
+  SHELTER,
   SHEPHERD_START,
   WORLD_HEIGHT,
   WORLD_WIDTH,
@@ -31,9 +35,11 @@ import type { LostSheepMissionState } from "@/parables/lost-sheep/missionState";
 import { LostSheepHud } from "@/parables/lost-sheep/LostSheepHud";
 import { GameOverOverlay, VictoryOverlay } from "@/parables/lost-sheep/EndScreens";
 import { DialogueOverlay } from "@/ui/DialogueOverlay";
+import { NarrativeToast } from "@/ui/NarrativeToast";
 import { PixelIconButton } from "@/ui/PixelIconButton";
 import { backIcon } from "@/pixel-art/icons";
 import { useT } from "@/locales/useT";
+import type { LocaleKey } from "@/locales/en";
 import { useProgressStore } from "@/store/progressStore";
 import { getNextParableId } from "@/parables/registry";
 
@@ -46,27 +52,115 @@ const SEARCH_WOLF_CAP = 3;
 const ESCORT_WOLF_CAP = 5;
 const GUARD_WOLF_COUNT = 3;
 const GUARD_WOLF_DISTANCE = 26;
+const DANGER_DELAY = 15;
+const BLOOD_DISCOVERY_RADIUS = 26;
+const LIGHT_RADIUS_START = 70;
+const LIGHT_RADIUS_MIN = 46;
+const LIGHT_SHRINK_DURATION = 240;
 
 /**
- * The small rocky hill the lost sheep waits on — a raised grass mound with
- * rock outcrops embedded at its base, purely decorative (no gameplay
- * elevation). Deterministic seed so the hill looks identical every run.
+ * The lost sheep's special elevated area — a rocky, mostly-exposed ledge
+ * (irregular, not a clean ellipse) that reads deliberately different from
+ * the lush, unclimbable hills scattered through the terrain: those are
+ * green mounds you cannot approach, this is the one place you're meant to
+ * be able to reach. Purely decorative, no gameplay elevation — walkable
+ * ground like everywhere else, just built to look worth climbing.
  */
-function drawHill(x: number, y: number): Graphics {
+function drawSheepLedge(x: number, y: number): Graphics {
   const g = new Graphics();
-  g.ellipse(x, y + 7, 42, 19).fill({ color: hexToNumber(palette.foliage.shadow), alpha: 0.35 });
-  g.ellipse(x, y + 3, 38, 21).fill(hexToNumber(palette.grass.dark));
-  g.ellipse(x, y, 33, 17).fill(hexToNumber(palette.grass.base));
-  g.ellipse(x - 6, y - 5, 19, 9).fill({ color: hexToNumber(palette.grass.light), alpha: 0.55 });
-
   const rng = createRng(1212);
-  const rockAnglesOnHill = [-2.4, -0.6, 1.1, 2.6];
-  for (const angle of rockAnglesOnHill) {
-    const rx = x + Math.cos(angle) * (26 + rng() * 6);
-    const ry = y + Math.sin(angle) * (13 + rng() * 3);
-    buildRock(rx, ry, rng, 0.55 + rng() * 0.35, g);
+  const pointCount = 9;
+  const radii: number[] = [];
+  for (let i = 0; i < pointCount; i++) radii.push(32 * (0.8 + rng() * 0.4));
+
+  const shadowPts: number[] = [];
+  const rockPts: number[] = [];
+  const rockMidPts: number[] = [];
+  const grassPts: number[] = [];
+  for (let i = 0; i < pointCount; i++) {
+    const angle = (i / pointCount) * Math.PI * 2;
+    const cos = Math.cos(angle);
+    const sin = Math.sin(angle) * 0.56;
+    shadowPts.push(x + cos * radii[i] * 1.1 + 3, y + sin * radii[i] * 1.1 + 7);
+    rockPts.push(x + cos * radii[i], y + sin * radii[i]);
+    rockMidPts.push(x + cos * radii[i] * 0.82, y + sin * radii[i] * 0.82 - 1);
+    grassPts.push(x + cos * radii[i] * 0.55, y + sin * radii[i] * 0.55 - 3);
+  }
+  g.poly(shadowPts).fill({ color: hexToNumber(palette.foliage.shadow), alpha: 0.3 });
+  g.poly(rockPts).fill(0x6b675a);
+  g.poly(rockMidPts).fill(0x8b8879);
+  g.poly(grassPts).fill(hexToNumber(palette.grass.base));
+  g.ellipse(x - 6, y - 8, 12, 6).fill({ color: hexToNumber(palette.grass.light), alpha: 0.5 });
+
+  for (let i = 0; i < 4; i++) {
+    const angle = rng() * Math.PI * 2;
+    const r = 30 + rng() * 8;
+    buildRock(x + Math.cos(angle) * r, y + Math.sin(angle) * r * 0.56, rng, 0.5 + rng() * 0.3, g);
   }
   return g;
+}
+
+/** The pen's interior: a lean-to shelter, a hay pile and a stacked-log woodpile — purely visual, their collision comes from `SHELTER`/`PEN_DETAIL_OBSTACLES` (map.ts). */
+function buildPenDetails(world: Container): void {
+  const s = SHELTER;
+  const shelter = new Graphics();
+  shelter.rect(s.x, s.y + 8, s.width, s.height - 8).fill(hexToNumber(palette.fence.dark));
+  shelter.rect(s.x, s.y + 8, s.width, 3).fill({ color: hexToNumber(palette.fence.darkest), alpha: 0.5 });
+  shelter.rect(s.x, s.y + 8, 4, s.height - 8).fill(hexToNumber(palette.fence.darkest));
+  shelter.rect(s.x + s.width - 4, s.y + 8, 4, s.height - 8).fill({ color: hexToNumber(palette.fence.mid), alpha: 0.7 });
+
+  const roofPeakX = s.x + s.width / 2;
+  shelter
+    .poly([s.x - 6, s.y + 14, roofPeakX, s.y - 10, s.x + s.width + 6, s.y + 14, s.x + s.width + 6, s.y + 19, roofPeakX, s.y - 5, s.x - 6, s.y + 19])
+    .fill(hexToNumber(palette.hay.base));
+  shelter
+    .poly([s.x - 6, s.y + 14, roofPeakX, s.y - 10, roofPeakX, s.y - 5, s.x - 6, s.y + 19])
+    .fill({ color: hexToNumber(palette.hay.shadow), alpha: 0.55 });
+
+  const roofRng = createRng(4141);
+  for (let i = 0; i < 12; i++) {
+    const rx = s.x - 4 + roofRng() * (s.width + 8);
+    const ry = s.y + 4 + roofRng() * 10;
+    shelter
+      .moveTo(rx, ry)
+      .lineTo(rx + 3, ry - 4)
+      .stroke({ width: 0.6, color: hexToNumber(palette.hay.light), alpha: 0.4 });
+  }
+  world.addChild(shelter);
+
+  const hay = PEN_DETAIL_OBSTACLES[0];
+  const haypile = new Graphics();
+  haypile.ellipse(hay.x, hay.y + 6, hay.radius + 4, hay.radius * 0.5).fill({ color: hexToNumber(palette.foliage.shadow), alpha: 0.25 });
+  haypile.ellipse(hay.x, hay.y + 2, hay.radius + 2, hay.radius * 0.62).fill(hexToNumber(palette.hay.shadow));
+  haypile.ellipse(hay.x, hay.y, hay.radius, hay.radius * 0.58).fill(hexToNumber(palette.hay.base));
+  haypile.ellipse(hay.x - hay.radius * 0.3, hay.y - hay.radius * 0.3, hay.radius * 0.5, hay.radius * 0.28).fill({
+    color: hexToNumber(palette.hay.light),
+    alpha: 0.6,
+  });
+  const strawRng = createRng(2929);
+  for (let i = 0; i < 10; i++) {
+    const angle = strawRng() * Math.PI * 2;
+    const r = hay.radius * (0.5 + strawRng() * 0.5);
+    const sx = hay.x + Math.cos(angle) * r;
+    const sy = hay.y + Math.sin(angle) * r * 0.55;
+    haypile
+      .moveTo(sx, sy)
+      .lineTo(sx + (strawRng() - 0.5) * 4, sy - 3 - strawRng() * 3)
+      .stroke({ width: 0.6, color: hexToNumber(palette.hay.shadow), alpha: 0.5 });
+  }
+  world.addChild(haypile);
+
+  const wood = PEN_DETAIL_OBSTACLES[1];
+  const logs = new Graphics();
+  for (let row = 0; row < 2; row++) {
+    for (let i = -1; i <= 1; i++) {
+      const lx = wood.x + i * 5;
+      const ly = wood.y - row * 4.5;
+      logs.ellipse(lx, ly, 5, 3).fill(hexToNumber(palette.fence.base));
+      logs.ellipse(lx, ly, 2.6, 1.6).fill(hexToNumber(palette.fence.darkest));
+    }
+  }
+  world.addChild(logs);
 }
 
 interface RuntimeRefs {
@@ -77,15 +171,26 @@ interface RuntimeRefs {
   sheep: LostSheep;
   wolves: Wolf[];
   guardWolves: Wolf[];
+  sentinelWolves: Wolf[];
   flock: Flock;
   terrainObstacles: TerrainObstacle[];
+  penObstacles: CircleObstacle[];
+  bloodPositions: { x: number; y: number }[];
   input: KeyboardController;
   camera: Camera;
   night: NightOverlay;
   mission: ReturnType<typeof createMissionMachine<LostSheepMissionState>>;
   nightIntensity: number;
+  lightRadius: number;
+  lastAppliedLightRadius: number;
   spawnTimer: number;
   hitThisSwing: Set<Wolf>;
+  dangerTimer: number;
+  dangerActive: boolean;
+  dangerDialogueQueued: boolean;
+  firstBloodShown: boolean;
+  toastActive: boolean;
+  pendingToasts: LocaleKey[];
 }
 
 interface LostSheepSceneProps {
@@ -101,35 +206,44 @@ export function LostSheepScene({ onExit, onRetry }: LostSheepSceneProps) {
   const runtimeRef = useRef<RuntimeRefs | null>(null);
   const [missionState, setMissionState] = useState<LostSheepMissionState>("intro");
   const [hud, setHud] = useState({ shepherdHp: 100, sheepHp: LOST_SHEEP_START_HP });
+  const [sheepDanger, setSheepDanger] = useState(false);
+  const [toastLine, setToastLine] = useState<LocaleKey | null>(null);
 
   const onReady = useCallback((app: Application) => {
     const world = new Container();
     app.stage.addChild(world);
     const { obstacles: terrainObstacles, dynamicLayer } = buildTerrain(world);
 
-    buildJourneyTrail(world, JOURNEY_PATH);
+    const trail = buildJourneyTrail(world, JOURNEY_PATH);
 
-    const fence = createFenceOutline(PEN.width, PEN.height, { x: GATE.x - PEN.x, width: GATE.width });
+    const fence = createFenceOutline(
+      PEN.width,
+      PEN.height,
+      { x: GATE.x - PEN.x, width: GATE.width },
+      { x: PEN.width, y: PEN_EXTENSION.y - PEN.y, width: PEN_EXTENSION.width, height: PEN_EXTENSION.height },
+    );
     fence.position.set(PEN.x, PEN.y);
+
+    buildPenDetails(world);
 
     const flock = new Flock(FLOCK_COUNT);
     world.addChild(flock.container);
     world.addChild(fence);
 
-    // `dynamicLayer` (tree canopies + large rocks) is added last so the
+    // `dynamicLayer` (tree canopies, rocks, hills) is added last so the
     // player, sheep and wolves inside it can sort correctly against tall
-    // scenery by y — while still rendering above the fence/flock/mound.
+    // scenery by y — while still rendering above the fence/flock/pen.
     world.addChild(dynamicLayer);
 
     const shepherd = new Shepherd(SHEPHERD_START);
     const sheepSpawn = LOST_SHEEP_START;
     const sheep = new LostSheep(sheepSpawn);
-    world.addChild(drawHill(sheepSpawn.x, sheepSpawn.y));
+    world.addChild(drawSheepLedge(sheepSpawn.x, sheepSpawn.y));
     dynamicLayer.addChild(sheep.sprite.container);
     dynamicLayer.addChild(shepherd.sprite.container);
 
-    // Three wolves keep watch at the foot of the hill, slowly circling the
-    // sheep they're guarding, until the shepherd gets close enough to find it.
+    // Three wolves surround the sleeping sheep, fast asleep and utterly
+    // unaware of the shepherd, until the mission actually rescues it.
     const guardWolves: Wolf[] = [];
     for (let i = 0; i < GUARD_WOLF_COUNT; i++) {
       const angle = (i / GUARD_WOLF_COUNT) * Math.PI * 2 + Math.PI / 2;
@@ -138,17 +252,33 @@ export function LostSheepScene({ onExit, onRetry }: LostSheepSceneProps) {
         y: sheepSpawn.y + Math.sin(angle) * GUARD_WOLF_DISTANCE + 6,
       });
       wolf.guarding = true;
-      wolf.patrolCenter = sheepSpawn;
-      wolf.patrolRadius = GUARD_WOLF_DISTANCE + i * 3;
-      wolf.patrolAngle = angle;
-      wolf.patrolAngularSpeed = 0.12 + i * 0.025;
       guardWolves.push(wolf);
       dynamicLayer.addChild(wolf.sprite.container);
     }
 
+    // Fixed sentinel wolves scattered through the level — inert until the
+    // shepherd wanders into their detection radius, at which point they
+    // wake for good. Mostly placed to make the decoy routes feel actively
+    // risky rather than just visually different.
+    const sentinelWolves: Wolf[] = [];
+    SENTINEL_WOLVES.forEach((spec, i) => {
+      const wolf = new Wolf({ x: spec.x, y: spec.y });
+      wolf.sentinel = true;
+      wolf.detectionRadius = spec.detectionRadius;
+      if (spec.style === "patrol") {
+        wolf.patrolCenter = { x: spec.x, y: spec.y };
+        wolf.patrolRadius = 24;
+        wolf.patrolAngle = i * 1.3;
+        wolf.patrolAngularSpeed = 0.13 + (i % 3) * 0.02;
+      }
+      sentinelWolves.push(wolf);
+      dynamicLayer.addChild(wolf.sprite.container);
+    });
+
     const input = new KeyboardController();
     const camera = new Camera({ width: WORLD_WIDTH, height: WORLD_HEIGHT });
     const night = createNightOverlay(app);
+    night.setLightRadius(LIGHT_RADIUS_START);
     const mission = createMissionMachine<LostSheepMissionState>("intro");
 
     const runtime: RuntimeRefs = {
@@ -157,17 +287,28 @@ export function LostSheepScene({ onExit, onRetry }: LostSheepSceneProps) {
       dynamicLayer,
       shepherd,
       sheep,
-      wolves: [...guardWolves],
+      wolves: [...guardWolves, ...sentinelWolves],
       guardWolves,
+      sentinelWolves,
       flock,
       terrainObstacles,
+      penObstacles: PEN_DETAIL_OBSTACLES,
+      bloodPositions: trail.bloodPositions,
       input,
       camera,
       night,
       mission,
       nightIntensity: 0,
+      lightRadius: LIGHT_RADIUS_START,
+      lastAppliedLightRadius: LIGHT_RADIUS_START,
       spawnTimer: 4,
       hitThisSwing: new Set(),
+      dangerTimer: 0,
+      dangerActive: false,
+      dangerDialogueQueued: false,
+      firstBloodShown: false,
+      toastActive: false,
+      pendingToasts: [],
     };
     runtimeRef.current = runtime;
 
@@ -181,6 +322,7 @@ export function LostSheepScene({ onExit, onRetry }: LostSheepSceneProps) {
     });
 
     let lastHudSent = { shepherdHp: 100, sheepHp: LOST_SHEEP_START_HP };
+    let lastDangerSent = false;
 
     const tick = (ticker: { deltaTime: number }) => {
       const current = runtimeRef.current;
@@ -193,6 +335,7 @@ export function LostSheepScene({ onExit, onRetry }: LostSheepSceneProps) {
       // The player must never be able to walk through any living creature —
       // the flock, the lost sheep, or a wolf all count as solid obstacles.
       const obstacles: CircleObstacle[] = current.terrainObstacles
+        .concat(current.penObstacles)
         .concat(current.flock.asObstacles())
         .concat([{ x: current.sheep.position.x, y: current.sheep.position.y, radius: current.sheep.radius }])
         .concat(current.wolves.map((wolf) => ({ x: wolf.position.x, y: wolf.position.y, radius: wolf.radius })));
@@ -200,7 +343,7 @@ export function LostSheepScene({ onExit, onRetry }: LostSheepSceneProps) {
       current.flock.update(dt);
 
       if (state !== "intro") {
-        current.sheep.update(dt, current.shepherd.position, playing);
+        current.sheep.update(dt, current.shepherd.position, current.dangerActive);
       }
 
       current.camera.update(current.shepherd.position, dt);
@@ -210,21 +353,64 @@ export function LostSheepScene({ onExit, onRetry }: LostSheepSceneProps) {
       const fadeRate = 1 - Math.exp(-dt * 0.35);
       current.nightIntensity += (targetIntensity - current.nightIntensity) * fadeRate;
       current.night.setIntensity(current.nightIntensity);
-      current.night.setFollowPosition(current.camera.toScreen(current.shepherd.position));
+      current.night.setFollowPosition(current.shepherd.getLanternScreenPosition());
 
       if (playing) {
-        // Search -> found transition: the sheep flees and the wolves guarding it wake up.
+        // The lantern's light very slowly closes in over the whole level — subtle, but it never stops tightening.
+        current.lightRadius = Math.max(
+          LIGHT_RADIUS_MIN,
+          current.lightRadius - dt * ((LIGHT_RADIUS_START - LIGHT_RADIUS_MIN) / LIGHT_SHRINK_DURATION),
+        );
+        const roundedRadius = Math.round(current.lightRadius);
+        if (roundedRadius !== current.lastAppliedLightRadius) {
+          current.lastAppliedLightRadius = roundedRadius;
+          current.night.setLightRadius(roundedRadius);
+        }
+
+        // The sheep's wound stays quiet for a while — a beat of calm before the pressure starts.
+        if (!current.dangerActive && !current.dangerDialogueQueued) {
+          current.dangerTimer += dt;
+          if (current.dangerTimer >= DANGER_DELAY) {
+            current.dangerDialogueQueued = true;
+            current.pendingToasts.push("lostSheep.danger.hurry");
+          }
+        }
+
+        // The first drop of blood the player comes across gets a one-time reaction.
+        if (!current.firstBloodShown) {
+          for (const drop of current.bloodPositions) {
+            if (distance(current.shepherd.position, drop) < BLOOD_DISCOVERY_RADIUS) {
+              current.firstBloodShown = true;
+              current.pendingToasts.push("lostSheep.danger.bloodFound");
+              break;
+            }
+          }
+        }
+
+        if (!current.toastActive && current.pendingToasts.length > 0) {
+          current.toastActive = true;
+          setToastLine(current.pendingToasts.shift() ?? null);
+        }
+
+        // Search -> found transition: the sheep flees and every guard wolf around it wakes at once.
         if (state === "search" && distance(current.shepherd.position, current.sheep.position) < FOUND_RADIUS) {
           current.sheep.startFollowing();
           for (const guard of current.guardWolves) guard.guarding = false;
           current.mission.set("escort");
         }
 
+        // Sentinel wolves wake permanently the instant the shepherd crosses their detection radius.
+        for (const wolf of current.sentinelWolves) {
+          if (!wolf.aggroed && distance(wolf.position, current.shepherd.position) < wolf.detectionRadius) {
+            wolf.aggroed = true;
+          }
+        }
+
         // Wolf spawning.
         current.spawnTimer -= dt;
         const cap = state === "escort" ? ESCORT_WOLF_CAP : SEARCH_WOLF_CAP;
         const interval = state === "escort" ? 3.2 : 5.5;
-        if (current.spawnTimer <= 0 && current.wolves.length < cap) {
+        if (current.spawnTimer <= 0 && current.wolves.length - current.sentinelWolves.length < cap) {
           current.spawnTimer = interval;
           spawnWolf(current);
         }
@@ -261,7 +447,7 @@ export function LostSheepScene({ onExit, onRetry }: LostSheepSceneProps) {
         }
 
         for (const wolf of current.wolves) {
-          if (!wolf.guarding && !wolf.stunned && wolf.canDamage()) {
+          if (!wolf.inert && !wolf.stunned && wolf.canDamage()) {
             if (circlesOverlap(wolf.position, wolf.radius, current.shepherd.position, current.shepherd.radius + 3)) {
               current.shepherd.takeDamage(WOLF_CONTACT_DAMAGE);
               wolf.markDamaged();
@@ -296,6 +482,10 @@ export function LostSheepScene({ onExit, onRetry }: LostSheepSceneProps) {
         lastHudSent = nextHud;
         setHud(nextHud);
       }
+      if (current.dangerActive !== lastDangerSent) {
+        lastDangerSent = current.dangerActive;
+        setSheepDanger(current.dangerActive);
+      }
     };
 
     app.ticker.add(tick);
@@ -322,6 +512,17 @@ export function LostSheepScene({ onExit, onRetry }: LostSheepSceneProps) {
     runtimeRef.current?.mission.set("search");
   };
 
+  const handleToastDone = useCallback(() => {
+    const current = runtimeRef.current;
+    setToastLine((activeLine) => {
+      if (current && activeLine === "lostSheep.danger.hurry") {
+        current.dangerActive = true;
+      }
+      return null;
+    });
+    if (current) current.toastActive = false;
+  }, []);
+
   return (
     <div style={{ position: "relative", width: "100%", height: "100%" }}>
       <PixiStage onReady={onReady} className="" />
@@ -335,8 +536,10 @@ export function LostSheepScene({ onExit, onRetry }: LostSheepSceneProps) {
       />
 
       {(missionState === "search" || missionState === "escort") && (
-        <LostSheepHud shepherdHp={hud.shepherdHp} sheepHp={hud.sheepHp} state={missionState} />
+        <LostSheepHud shepherdHp={hud.shepherdHp} sheepHp={hud.sheepHp} sheepDanger={sheepDanger} state={missionState} />
       )}
+
+      {toastLine && <NarrativeToast line={toastLine} onDone={handleToastDone} seed="lost-sheep-toast" />}
 
       {missionState === "intro" && (
         <DialogueOverlay
@@ -362,6 +565,10 @@ function spawnWolf(runtime: RuntimeRefs): void {
   const spawnRadius = 8;
   if (circleOverlapsRect({ x, y }, spawnRadius, PEN)) {
     const pushed = resolveCircleVsRect({ x, y }, spawnRadius, PEN);
+    x = pushed.x;
+    y = pushed.y;
+  } else if (circleOverlapsRect({ x, y }, spawnRadius, PEN_EXTENSION)) {
+    const pushed = resolveCircleVsRect({ x, y }, spawnRadius, PEN_EXTENSION);
     x = pushed.x;
     y = pushed.y;
   }

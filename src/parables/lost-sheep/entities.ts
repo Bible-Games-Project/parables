@@ -19,7 +19,7 @@ import {
   type ShepherdVisual,
   type WolfVisual,
 } from "@/parables/lost-sheep/sprites";
-import { PEN, PEN_WALLS, WORLD_HEIGHT, WORLD_WIDTH } from "@/parables/lost-sheep/map";
+import { PEN, PEN_EXTENSION, PEN_COLLISION_WALLS, RIVER_WALLS, WORLD_HEIGHT, WORLD_WIDTH } from "@/parables/lost-sheep/map";
 
 const WORLD_BOUNDS = { width: WORLD_WIDTH, height: WORLD_HEIGHT };
 
@@ -57,7 +57,10 @@ export class Shepherd {
       this.position.x += direction.x * this.speed * dt;
       this.position.y += direction.y * this.speed * dt;
 
-      for (const wall of PEN_WALLS) {
+      for (const wall of PEN_COLLISION_WALLS) {
+        this.position = resolveCircleVsRect(this.position, this.radius, wall);
+      }
+      for (const wall of RIVER_WALLS) {
         this.position = resolveCircleVsRect(this.position, this.radius, wall);
       }
       for (const obstacle of circleObstacles) {
@@ -113,6 +116,11 @@ export class Shepherd {
 
   takeDamage(amount: number): void {
     this.hp = Math.max(0, this.hp - amount);
+  }
+
+  /** The lantern's flame position in stage/screen space (i.e. already camera-adjusted, same space `Camera.toScreen` produces) — read this every frame so the night light follows the lantern in the shepherd's hand, not his body center. */
+  getLanternScreenPosition(): Vector2 {
+    return this.sprite.lanternGlow.getGlobalPosition();
   }
 }
 
@@ -196,13 +204,18 @@ export class Wolf {
   speed = 62;
   hp = 30;
   sprite: WolfVisual;
-  /** Guard wolves stand watch — slowly circling the sheep they're guarding — until the scene activates them (e.g. the player finds the sheep). */
+  /** Guard wolves surround the lost sheep, fast asleep (see sprite.zzz), and completely ignore the shepherd — even at close range — until the scene wakes them the instant the sheep is actually rescued. */
   guarding = false;
-  /** Point the wolf slowly orbits while `guarding` is true — set by the scene to the lost sheep's position. */
+  /** A fixed sentinel placed somewhere in the world (see map.ts `SENTINEL_WOLVES`) rather than the hill guard or a dynamically-spawned roaming wolf. */
+  sentinel = false;
+  /** Once true (a sentinel's detection radius was crossed), the wolf behaves like a normal chasing wolf forever after. */
+  aggroed = false;
+  detectionRadius = 80;
+  /** Point the wolf slowly orbits while inert — set by the scene for "patrol"-style sentinels only; "still" sentinels and sleeping guards leave this unset and simply don't move. */
   patrolCenter?: Vector2;
   patrolRadius = 28;
   patrolAngle = 0;
-  /** Radians/second — deliberately slow, so guard wolves read as watching and waiting rather than hunting. */
+  /** Radians/second — deliberately slow, so a patrolling wolf reads as watching an area rather than hunting. */
   patrolAngularSpeed = 0.15;
 
   private stunTimer = 0;
@@ -213,6 +226,12 @@ export class Wolf {
   private walkBlend = 0;
   private attackFlash = 0;
   private facing = 1;
+  private zzzPhase = 0;
+
+  /** True while the wolf poses no threat: asleep guarding the sheep, or a sentinel that hasn't noticed the shepherd yet. */
+  get inert(): boolean {
+    return this.guarding || (this.sentinel && !this.aggroed);
+  }
 
   constructor(start: Vector2) {
     this.position = { ...start };
@@ -249,8 +268,8 @@ export class Wolf {
       this.position.x += this.knockback.x * dt;
       this.position.y += this.knockback.y * dt;
       this.knockback = { x: lerp(this.knockback.x, 0, 0.15), y: lerp(this.knockback.y, 0, 0.15) };
-    } else if (this.guarding && this.patrolCenter) {
-      // Slowly circle the sheep rather than standing frozen — present, watchful, unhurried.
+    } else if (this.inert && this.patrolCenter) {
+      // A patrolling sentinel slowly circles its post — present, watchful, unhurried — rather than standing frozen.
       this.patrolAngle += dt * this.patrolAngularSpeed;
       const target = {
         x: this.patrolCenter.x + Math.cos(this.patrolAngle) * this.patrolRadius,
@@ -259,21 +278,26 @@ export class Wolf {
       const before = { ...this.position };
       this.position = { x: lerp(this.position.x, target.x, Math.min(1, dt * 3)), y: lerp(this.position.y, target.y, Math.min(1, dt * 3)) };
       velocity = { x: this.position.x - before.x, y: this.position.y - before.y };
-    } else if (chaseTarget) {
+    } else if (!this.inert && chaseTarget) {
       const before = { ...this.position };
       this.position = steerToward(this.position, chaseTarget, this.speed, dt);
       velocity = { x: this.position.x - before.x, y: this.position.y - before.y };
     }
 
-    // Trees, bushes and large rocks block wolves too — they slide along an
+    // Trees, bushes, rocks and hills block wolves too — they slide along an
     // obstacle rather than pathfinding around it, which reads fine at this scale.
     for (const obstacle of circleObstacles) {
       this.position = resolveCircleVsCircle(this.position, this.radius, obstacle, obstacle.radius);
     }
 
-    // Wolves may surround the pen but can never cross the fence into it.
+    // Wolves may surround the pen but can never cross the fence into it, and water stops them exactly like it stops the player.
     if (circleOverlapsRect(this.position, this.radius, PEN as Rect)) {
       this.position = resolveCircleVsRect(this.position, this.radius, PEN as Rect);
+    } else if (circleOverlapsRect(this.position, this.radius, PEN_EXTENSION as Rect)) {
+      this.position = resolveCircleVsRect(this.position, this.radius, PEN_EXTENSION as Rect);
+    }
+    for (const wall of RIVER_WALLS) {
+      this.position = resolveCircleVsRect(this.position, this.radius, wall);
     }
 
     this.position = clampToBounds(this.position, WORLD_BOUNDS, this.radius);
@@ -303,5 +327,12 @@ export class Wolf {
     this.sprite.body.scale.set(this.facing * (1 + breathe + lunge), 1 - breathe * 0.5);
 
     this.sprite.container.alpha = this.stunTimer > 0 ? 0.55 : 1;
+
+    this.sprite.zzz.visible = this.guarding;
+    if (this.guarding) {
+      this.zzzPhase += dt;
+      this.sprite.zzz.y = -13 + Math.sin(this.zzzPhase * 1.4) * 1.2;
+      this.sprite.zzz.alpha = 0.7 + Math.sin(this.zzzPhase * 1.4) * 0.3;
+    }
   }
 }

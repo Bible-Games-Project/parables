@@ -3,9 +3,18 @@ import { hexToNumber } from "@/pixel-art/color";
 import { createRng } from "@/pixel-art/prng";
 import { palette } from "@/pixel-art/palette";
 import { buildBush, buildRock, buildTree } from "@/pixel-art/foliage";
-import { JOURNEY_PATH, PEN, WORLD_HEIGHT, WORLD_WIDTH, journeyAt, nearestJourneyPoint } from "@/parables/lost-sheep/map";
+import {
+  BRIDGE,
+  CORRIDOR_PATHS,
+  RIVER,
+  WORLD_HEIGHT,
+  WORLD_WIDTH,
+  isNearPen,
+  journeyAt,
+  nearestCorridorPoint,
+} from "@/parables/lost-sheep/map";
 
-/** How close to the rescue route's centerline nothing is allowed to grow — keeps the S-curve walkable end to end. */
+/** How close to any corridor's centerline nothing is allowed to grow — keeps every route walkable end to end. */
 const CORRIDOR_CLEAR = 58;
 
 export interface TerrainObstacle {
@@ -31,13 +40,127 @@ function drawFlower(g: Graphics, x: number, y: number, variant: (typeof FLOWER_V
   g.circle(x, y, 0.7).fill(center);
 }
 
+/**
+ * A tree's canopy, sorted individually by its own ground-contact y (never a
+ * shared band) — the rule every tall object in this world follows: only the
+ * BASE decides depth order, so the player reliably renders in front of a
+ * tree the instant their feet are below where it actually stands, and
+ * behind it otherwise. The trunk still goes into the static always-below
+ * batch so it never covers anyone's feet.
+ */
+function addSortedTree(x: number, baseY: number, rng: () => number, trunkBatch: Graphics, dynamicLayer: Container): void {
+  const canopy = new Graphics();
+  buildTree(x, baseY, rng, trunkBatch, canopy);
+  canopy.zIndex = baseY;
+  dynamicLayer.addChild(canopy);
+}
+
+/** An irregular, unclimbable hill mass — a jittered polygon silhouette (not a clean ellipse) with a rocky base ring, solid across its whole footprint so it truly can't be walked onto, sorted like every other tall object by its own base y. */
+function buildHillMass(
+  cx: number,
+  cy: number,
+  seed: number,
+  radius: number,
+  dynamicLayer: Container,
+  obstacles: TerrainObstacle[],
+): void {
+  const rng = createRng(seed);
+  const pointCount = 10 + Math.floor(rng() * 4);
+  const radii: number[] = [];
+  for (let i = 0; i < pointCount; i++) radii.push(radius * (0.72 + rng() * 0.48));
+
+  const g = new Graphics();
+  const shadowPoints: number[] = [];
+  const rockPoints: number[] = [];
+  const capPoints: number[] = [];
+  const highPoints: number[] = [];
+  for (let i = 0; i < pointCount; i++) {
+    const angle = (i / pointCount) * Math.PI * 2;
+    const cos = Math.cos(angle);
+    const sin = Math.sin(angle) * 0.74;
+    shadowPoints.push(cx + cos * radii[i] * 1.08 + 3, cy + sin * radii[i] * 1.08 + 6);
+    rockPoints.push(cx + cos * radii[i] * 1.04, cy + sin * radii[i] * 1.04 + 3);
+    capPoints.push(cx + cos * radii[i], cy + sin * radii[i]);
+    highPoints.push(cx + cos * radii[i] * 0.78, cy + sin * radii[i] * 0.78 - 3);
+  }
+  g.poly(shadowPoints).fill({ color: hexToNumber(palette.foliage.shadow), alpha: 0.32 });
+  g.poly(rockPoints).fill(0x5a584f);
+  g.poly(capPoints).fill(hexToNumber(palette.grass.dark));
+  g.poly(highPoints).fill(hexToNumber(palette.grass.base));
+  g.ellipse(cx - radius * 0.22, cy - radius * 0.32, radius * 0.38, radius * 0.2).fill({
+    color: hexToNumber(palette.grass.light),
+    alpha: 0.4,
+  });
+  for (let i = 0; i < 3; i++) {
+    const angle = rng() * Math.PI * 2;
+    const r = radius * (0.82 + rng() * 0.2);
+    buildRock(cx + Math.cos(angle) * r, cy + Math.sin(angle) * r * 0.74 + 4, rng, 0.75 + rng() * 0.5, g);
+  }
+
+  g.zIndex = cy + radius * 0.74;
+  dynamicLayer.addChild(g);
+
+  // Collision fills the whole footprint (not just the rim) with overlapping circles, so no part of the hill can be walked onto.
+  const step = radius * 0.55;
+  for (let ox = -radius; ox <= radius; ox += step) {
+    for (let oy = -radius * 0.74; oy <= radius * 0.74; oy += step) {
+      if (Math.hypot(ox / radius, oy / (radius * 0.74)) > 0.9) continue;
+      obstacles.push({ x: cx + ox, y: cy + oy, radius: step * 0.62 });
+    }
+  }
+}
+
+/** The river band and its single wooden bridge — the true route's one crossing point. Purely visual; `RIVER_WALLS` (map.ts) is what actually blocks movement. */
+function buildRiver(world: Container): void {
+  const { yTop, yBottom, xStart, xEnd } = RIVER;
+  const water = new Graphics();
+  water.rect(xStart, yTop - 7, xEnd - xStart, yBottom - yTop + 14).fill({ color: 0x4a3b24, alpha: 0.4 });
+  water.rect(xStart, yTop, xEnd - xStart, yBottom - yTop).fill(hexToNumber(palette.water.deep));
+  water.rect(xStart, yTop + 6, xEnd - xStart, yBottom - yTop - 12).fill(hexToNumber(palette.water.base));
+
+  const rippleRng = createRng(6767);
+  for (let x = xStart; x < xEnd; x += 14) {
+    if (x > BRIDGE.xStart - 10 && x < BRIDGE.xEnd + 10) continue;
+    const ry = yTop + 10 + rippleRng() * (yBottom - yTop - 20);
+    const len = 8 + rippleRng() * 14;
+    water
+      .moveTo(x, ry)
+      .lineTo(x + len, ry + (rippleRng() - 0.5) * 4)
+      .stroke({ width: 1.2, color: hexToNumber(palette.water.light), alpha: 0.35 });
+  }
+  for (let x = xStart; x < xEnd; x += 30) {
+    if (x > BRIDGE.xStart - 10 && x < BRIDGE.xEnd + 10) continue;
+    const ry = yTop + 8 + rippleRng() * (yBottom - yTop - 16);
+    water.ellipse(x, ry, 3 + rippleRng() * 3, 1).fill({ color: hexToNumber(palette.water.foam), alpha: 0.22 });
+  }
+  world.addChild(water);
+
+  const bridge = new Graphics();
+  const bx1 = BRIDGE.xStart;
+  const bx2 = BRIDGE.xEnd;
+  bridge.rect(bx1 - 5, yTop - 5, bx2 - bx1 + 10, yBottom - yTop + 10).fill({ color: 0x1f1108, alpha: 0.3 });
+  bridge.rect(bx1, yTop - 2, bx2 - bx1, yBottom - yTop + 4).fill(hexToNumber(palette.fence.base));
+  const plankRng = createRng(5959);
+  for (let y = yTop; y < yBottom; y += 6) {
+    const shade = plankRng() > 0.5 ? palette.fence.darkest : palette.fence.dark;
+    bridge.rect(bx1, y, bx2 - bx1, 1.4).fill({ color: hexToNumber(shade), alpha: 0.4 });
+  }
+  for (const railX of [bx1, bx2 - 3]) {
+    bridge.rect(railX, yTop - 5, 3, yBottom - yTop + 10).fill(hexToNumber(palette.fence.dark));
+    for (let y = yTop; y <= yBottom; y += 14) {
+      bridge.rect(railX - 1, y - 2, 5, 4).fill(hexToNumber(palette.fence.mid));
+    }
+  }
+  world.addChild(bridge);
+}
+
 export interface TerrainResult {
   obstacles: TerrainObstacle[];
-  /** A Y-sortable Container (already added to `world`) holding tree canopies and large rocks. The caller should add the shepherd/sheep/wolves/flock into it too, and keep each entity's zIndex equal to its y position, so tall scenery correctly layers in front of or behind moving characters. */
+  /** A Y-sortable Container (already added to `world`) holding tree canopies and large rocks/hills. The caller should add the shepherd/sheep/wolves/flock into it too, and keep each entity's zIndex equal to its y position, so tall scenery correctly layers in front of or behind moving characters. */
   dynamicLayer: Container;
 }
 
-/** Builds the large outdoor world the shepherd searches: ground, dappled texture, flowers, scattered trees/bushes/rocks, and a path from the pen. Returns the solid obstacles (tree trunks and large rocks) for collision, plus the Y-sortable layer for depth. */
+/** Builds the large outdoor world the shepherd searches: ground, dappled texture, flowers, river, and scattered trees/bushes/rocks/hills flanking every walkable corridor. Returns the solid obstacles (tree trunks, rocks, hills) for collision, plus the Y-sortable layer for depth. */
 export function buildTerrain(world: Container): TerrainResult {
   const ground = new Graphics();
   ground.rect(0, 0, WORLD_WIDTH, WORLD_HEIGHT).fill(hexToNumber(palette.grass.base));
@@ -101,7 +224,7 @@ export function buildTerrain(world: Container): TerrainResult {
     }
   }
 
-  // The worn dirt path and the footprint/blood trail along the rescue route
+  // The worn dirt path and the footprint/blood trail along the true route
   // are drawn later by `buildJourneyTrail`, once the ground beneath them exists.
 
   // Flowers, scattered thinly across the whole field (avoiding the pen) — one shared Graphics, no per-flower draw call.
@@ -111,54 +234,43 @@ export function buildTerrain(world: Container): TerrainResult {
   for (let i = 0; i < flowerCount; i++) {
     const fx = flowerRng() * WORLD_WIDTH;
     const fy = flowerRng() * WORLD_HEIGHT;
-    if (fx > PEN.x - 30 && fx < PEN.x + PEN.width + 30 && fy > PEN.y - 30 && fy < PEN.y + PEN.height + 30) continue;
+    if (isNearPen(fx, fy, 30)) continue;
     const variant = FLOWER_VARIANTS[Math.floor(flowerRng() * FLOWER_VARIANTS.length)];
     drawFlower(flowers, fx, fy, variant);
   }
   world.addChild(flowers);
 
+  buildRiver(world);
+
   // Bushes and small rocks are ground-hugging and don't need Y-sorting
   // against the player, so every one of them is batched into two shared
-  // Graphics instead of costing its own draw call. Trees and large rocks are
-  // tall enough that the shepherd should visually pass in front of near ones
-  // and behind far ones: each tree's trunk is drawn into a static, always
-  // below-the-player batch (so the trunk never covers anyone's feet), while
-  // its canopy is drawn into a shared Graphics for its Y-band (a horizontal
-  // slice of the world) inside `dynamicLayer` — a container the caller mixes
-  // the player/sheep/wolves into and sorts by zIndex=y every frame. Only the
-  // ~dozen bands are depth-sorted rather than every tree individually, which
-  // keeps draw calls low while still getting correct sorting almost
-  // everywhere (it only misses at a band's exact edge). Large rocks are rare
-  // enough to sort individually the same way.
+  // Graphics instead of costing its own draw call. Trees, large rocks and
+  // hills are tall enough that the shepherd should visually pass in front of
+  // near ones and behind far ones: each tree's trunk is drawn into a static,
+  // always below-the-player batch (so the trunk never covers anyone's feet),
+  // while its canopy gets its OWN entry in `dynamicLayer` with zIndex set to
+  // its exact base y — never a shared band — so sorting is always correct,
+  // not just close. Large rocks and hills sort individually the same way.
   const obstacles: TerrainObstacle[] = [];
   const dynamicLayer = new Container();
   dynamicLayer.sortableChildren = true;
   const trunkBatch = new Graphics();
   const bushBatch = new Graphics();
   const rockBatch = new Graphics();
-  const treeBandSize = 150;
-  const treeBands = new Map<number, Graphics>();
   const rng = createRng(99);
   const propCount = Math.round((WORLD_WIDTH * WORLD_HEIGHT) / 17000);
   for (let i = 0; i < propCount; i++) {
     const x = rng() * WORLD_WIDTH;
     const y = rng() * WORLD_HEIGHT;
-    const withinPen = x > PEN.x - 50 && x < PEN.x + PEN.width + 50 && y > PEN.y - 50 && y < PEN.y + PEN.height + 50;
-    if (withinPen) continue;
-    if (nearestJourneyPoint(x, y).distance < CORRIDOR_CLEAR) continue;
+    if (isNearPen(x, y, 50)) continue;
+    if (nearestCorridorPoint(x, y).distance < CORRIDOR_CLEAR) continue;
 
     const roll = rng();
     if (roll < 0.4) {
-      const bandKey = Math.floor(y / treeBandSize);
-      let band = treeBands.get(bandKey);
-      if (!band) {
-        band = new Graphics();
-        band.zIndex = bandKey * treeBandSize + treeBandSize;
-        treeBands.set(bandKey, band);
-        dynamicLayer.addChild(band);
-      }
-      buildTree(x, y, rng, trunkBatch, band);
-      obstacles.push({ x, y: y - 6, radius: 4 });
+      // Collision sits only at the trunk's ground contact — never offset up
+      // into the canopy — so the foliage above never blocks movement.
+      addSortedTree(x, y, rng, trunkBatch, dynamicLayer);
+      obstacles.push({ x, y, radius: 3.5 });
     } else if (roll < 0.75) {
       buildBush(x, y, rng, bushBatch);
       obstacles.push({ x, y, radius: 3.5 });
@@ -174,48 +286,44 @@ export function buildTerrain(world: Container): TerrainResult {
       }
     }
   }
-  // Flanking terrain along the rescue route: sparse near the pen, thickening
-  // into real forest by the time the route reaches the sheep's hill, so the
-  // player is visually funneled along the S-curve without ever hitting a
-  // wall — the environment guides instead of blocking.
+
+  // Flanking terrain along every walkable corridor — sparse near the pen,
+  // thickening the deeper a route goes, so the player is visually funneled
+  // along each one without ever hitting a wall. Only the true route
+  // (CORRIDOR_PATHS[0]) is meant to feel safe; the decoys get the same
+  // treatment so they read as real paths worth exploring, not obviously fake.
   const FLANK_MIN = CORRIDOR_CLEAR + 14;
   const FLANK_MAX = CORRIDOR_CLEAR + 95;
   const flankRng = createRng(4242);
-  for (const p of JOURNEY_PATH) {
-    if (p.t < 0.05 || p.t > 0.92) continue; // leave the pen approach and the hill clearing open
-    for (const side of [-1, 1] as const) {
-      const density = 0.16 + 0.6 * p.t;
-      if (flankRng() > density) continue;
-      const off = FLANK_MIN + flankRng() * (FLANK_MAX - FLANK_MIN);
-      const x = p.x + p.nx * off * side;
-      const y = p.y + p.ny * off * side;
-      if (x < 20 || x > WORLD_WIDTH - 20 || y < 20 || y > WORLD_HEIGHT - 20) continue;
-      if (x > PEN.x - 50 && x < PEN.x + PEN.width + 50 && y > PEN.y - 50 && y < PEN.y + PEN.height + 50) continue;
+  for (const path of CORRIDOR_PATHS) {
+    for (const p of path) {
+      if (p.t < 0.05 || p.t > 0.92) continue; // leave each route's start and end open
+      for (const side of [-1, 1] as const) {
+        const density = 0.16 + 0.6 * p.t;
+        if (flankRng() > density) continue;
+        const off = FLANK_MIN + flankRng() * (FLANK_MAX - FLANK_MIN);
+        const x = p.x + p.nx * off * side;
+        const y = p.y + p.ny * off * side;
+        if (x < 20 || x > WORLD_WIDTH - 20 || y < 20 || y > WORLD_HEIGHT - 20) continue;
+        if (isNearPen(x, y, 50)) continue;
+        if (y > RIVER.yTop - 20 && y < RIVER.yBottom + 20 && x > BRIDGE.xStart - 30 && x < BRIDGE.xEnd + 30) continue;
 
-      const treeChance = 0.3 + 0.5 * p.t;
-      if (flankRng() < treeChance) {
-        const bandKey = Math.floor(y / treeBandSize);
-        let band = treeBands.get(bandKey);
-        if (!band) {
-          band = new Graphics();
-          band.zIndex = bandKey * treeBandSize + treeBandSize;
-          treeBands.set(bandKey, band);
-          dynamicLayer.addChild(band);
+        const treeChance = 0.3 + 0.5 * p.t;
+        if (flankRng() < treeChance) {
+          addSortedTree(x, y, flankRng, trunkBatch, dynamicLayer);
+          obstacles.push({ x, y, radius: 3.5 });
+        } else {
+          buildBush(x, y, flankRng, bushBatch);
+          obstacles.push({ x, y, radius: 3.5 });
         }
-        buildTree(x, y, flankRng, trunkBatch, band);
-        obstacles.push({ x, y: y - 6, radius: 4 });
-      } else {
-        buildBush(x, y, flankRng, bushBatch);
-        obstacles.push({ x, y, radius: 3.5 });
       }
     }
   }
 
-  // Four handcrafted landmarks along the route — a rock formation at the
-  // first bend, a grassy rise the route curves around at the second, the
-  // last broken fence post before the wilderness closes in, and a rocky
-  // cliff face guarding the final approach to the hill. Each nudges the
-  // player along the intended line without ever blocking it outright.
+  // Handcrafted landmarks along the true route — a rock formation at the
+  // first bend and a rocky cliff face guarding the final approach — each
+  // nudging the player along the intended line without ever blocking it
+  // outright.
   {
     const anchor = journeyAt(0.24);
     const cx = anchor.x + anchor.nx * 75;
@@ -230,42 +338,6 @@ export function buildTerrain(world: Container): TerrainResult {
       dynamicLayer.addChild(rock);
       obstacles.push({ x: jx, y: jy, radius: 5 * scale * 0.7 });
     }
-  }
-
-  {
-    const anchor = journeyAt(0.5);
-    const cx = anchor.x - anchor.nx * 95;
-    const cy = anchor.y - anchor.ny * 95;
-    const mound = new Graphics();
-    mound.ellipse(cx, cy + 8, 46, 20).fill({ color: hexToNumber(palette.foliage.shadow), alpha: 0.3 });
-    mound.ellipse(cx, cy + 3, 42, 23).fill(hexToNumber(palette.grass.dark));
-    mound.ellipse(cx, cy, 36, 19).fill(hexToNumber(palette.grass.base));
-    mound.ellipse(cx - 8, cy - 5, 20, 10).fill({ color: hexToNumber(palette.grass.light), alpha: 0.5 });
-    world.addChild(mound);
-    const hillRng = createRng(3355);
-    for (let i = 0; i < 3; i++) {
-      const rx = cx + (hillRng() - 0.5) * 40;
-      const ry = cy + (hillRng() - 0.5) * 18;
-      buildRock(rx, ry, hillRng, 0.6 + hillRng() * 0.3, rockBatch);
-    }
-  }
-
-  {
-    const anchor = journeyAt(0.68);
-    const baseX = anchor.x + anchor.nx * 62;
-    const baseY = anchor.y + anchor.ny * 62;
-    const tx = anchor.ny;
-    const ty = -anchor.nx;
-    const fenceRemnant = new Graphics();
-    const postRng = createRng(6060);
-    for (let i = 0; i < 4; i++) {
-      const px = baseX + tx * i * 16;
-      const py = baseY + ty * i * 16;
-      const height = i === 2 ? 6 : 11 + postRng() * 3; // one post snapped off short — the fence gave out here
-      fenceRemnant.rect(px - 1.5, py - height, 3, height).fill(hexToNumber(palette.fence.dark));
-      fenceRemnant.rect(px - 1.5, py - height, 1.2, height).fill(hexToNumber(palette.fence.mid));
-    }
-    world.addChild(fenceRemnant);
   }
 
   {
@@ -286,13 +358,29 @@ export function buildTerrain(world: Container): TerrainResult {
     }
   }
 
+  // Two irregular, unclimbable hills — natural silhouettes well clear of
+  // every corridor, solid across their whole footprint. Distinct from the
+  // sheep's special reachable ledge (built separately in LostSheepScene.tsx).
+  {
+    const anchor = journeyAt(0.5);
+    const cx = anchor.x - anchor.nx * 110;
+    const cy = anchor.y - anchor.ny * 110;
+    buildHillMass(cx, cy, 3355, 52, dynamicLayer, obstacles);
+  }
+  {
+    const anchor = journeyAt(0.34);
+    const cx = anchor.x + anchor.nx * 210;
+    const cy = anchor.y + anchor.ny * 210;
+    buildHillMass(cx, cy, 7711, 60, dynamicLayer, obstacles);
+  }
+
   world.addChild(trunkBatch);
   world.addChild(bushBatch);
   world.addChild(rockBatch);
   // `dynamicLayer` is intentionally NOT added to `world` here — the caller
   // adds it after the fence/flock/mound so those keep rendering below the
   // player as before, while still letting the player sort correctly against
-  // tree canopies and large rocks within the layer itself.
+  // tree canopies, rocks and hills within the layer itself.
 
   return { obstacles, dynamicLayer };
 }

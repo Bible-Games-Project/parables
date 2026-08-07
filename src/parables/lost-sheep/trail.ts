@@ -6,25 +6,24 @@ const FOOTPRINT_COLOR = 0x5a4632;
 const BLOOD_DARK = 0x6e1712;
 const BLOOD_MID = 0x9c2a1f;
 
-/**
- * Draws the sheep's trail along the rescue route: a faint worn dirt line
- * underneath, alternating cloven-hoof footprints on top, and blood drops
- * that start appearing partway along and grow steadily more frequent toward
- * the hill — the wounded sheep weakening the closer it gets to where it
- * finally collapsed. One fixed seed, so the trail is identical every
- * playthrough and always readable as the way to go.
- */
-export function buildJourneyTrail(world: Container, path: JourneyPoint[]): void {
-  const wornGround = new Graphics();
-  for (let i = 1; i < path.length; i++) {
-    const a = path[i - 1];
-    const b = path[i];
-    wornGround.moveTo(a.x, a.y).lineTo(b.x, b.y).stroke({ width: 18, color: 0xc7a874, alpha: 0.12, cap: "round" });
-  }
-  world.addChild(wornGround);
+export interface TrailResult {
+  /** World positions of every blood drop drawn, for the one-time "first blood discovered" narrative beat. */
+  bloodPositions: { x: number; y: number }[];
+}
 
+/**
+ * Draws the sheep's trail along the true rescue route: alternating
+ * cloven-hoof footprints, and blood drops that start appearing partway
+ * along and grow steadily more frequent toward the hill — the wounded sheep
+ * weakening the closer it gets to where it finally collapsed. Just the
+ * footprint/blood sprites themselves, no surrounding decoration. One fixed
+ * seed, so the trail is identical every playthrough and always readable as
+ * the way to go.
+ */
+export function buildJourneyTrail(world: Container, path: JourneyPoint[]): TrailResult {
   const footprints = new Graphics();
   const blood = new Graphics();
+  const bloodPositions: { x: number; y: number }[] = [];
   const rng = createRng(7331);
   let side = 1;
   for (const p of path) {
@@ -38,11 +37,16 @@ export function buildJourneyTrail(world: Container, path: JourneyPoint[]): void 
     // steadily more frequent the closer the trail gets to the sheep.
     const bloodChance = p.t < 0.22 ? 0 : (p.t - 0.22) / 0.78;
     if (rng() < bloodChance * 0.85) {
-      drawBloodDrop(blood, fx + (rng() - 0.5) * 10, fy + (rng() - 0.5) * 10, rng);
+      const bx = fx + (rng() - 0.5) * 10;
+      const by = fy + (rng() - 0.5) * 10;
+      drawBloodDrop(blood, bx, by, rng);
+      bloodPositions.push({ x: bx, y: by });
     }
   }
   world.addChild(footprints);
   world.addChild(blood);
+
+  return { bloodPositions };
 }
 
 function drawHoofprint(g: Graphics, x: number, y: number, nx: number, ny: number): void {

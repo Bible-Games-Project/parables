@@ -17,6 +17,8 @@ export interface ShepherdVisual {
   rightLeg: Container;
   frontArm: Container;
   staffArm: Container;
+  /** Empty marker positioned exactly at the lantern's flame — query its global position each frame so the night light follows the lantern itself, not the shepherd's body center. */
+  lanternGlow: Container;
 }
 
 function buildShepherdHead(): Container {
@@ -53,36 +55,53 @@ function buildShepherdHead(): Container {
   return head;
 }
 
-/** A proper shepherd's crook: a grained shaft, a bound leather grip, and a filled hook silhouette (not just an outline) so it reads clearly as a crook at a glance. */
-function buildStaff(): Container {
-  const staff = new Container();
+/**
+ * A small hand lantern: a brass frame with a caged glass body, a carry
+ * handle, and a warm layered-alpha glow standing in for the flame — no
+ * post-processing, just several soft circles the way every other light
+ * accent in this game is faked. `glow` is an empty marker positioned right
+ * at the flame's center so the caller can read its exact world position
+ * each frame (see Shepherd.getLanternWorldPosition in entities.ts) and have
+ * the night light originate from the lantern itself, not the shepherd's body.
+ */
+function buildLantern(): { container: Container; glow: Container } {
+  const lantern = new Container();
   const g = new Graphics();
-  g.rect(-1, -22, 2, 29).fill(hexToNumber(palette.wood.base));
-  g.rect(-1, -22, 1, 29).fill(hexToNumber(palette.wood.dark));
-  g.rect(0.3, -21, 0.5, 20).fill({ color: hexToNumber(palette.wood.highlight), alpha: 0.75 });
-  // Fine grain flecks along the shaft.
-  for (const gy of [-17, -11, -5, 1, 5]) {
-    g.rect(-1, gy, 2, 0.6).fill({ color: hexToNumber(palette.wood.darker), alpha: 0.35 });
+
+  // Carry handle.
+  g.moveTo(-2.2, -11.5)
+    .quadraticCurveTo(0, -14.5, 2.2, -11.5)
+    .stroke({ width: 0.8, color: hexToNumber(palette.lantern.frame) });
+
+  // Cap.
+  g.poly([-3, -11, 3, -11, 2, -8.6, -2, -8.6]).fill(hexToNumber(palette.lantern.frameLight));
+  g.rect(-3.4, -8.6, 6.8, 1).fill(hexToNumber(palette.lantern.frame));
+
+  // Glass body.
+  g.rect(-2.6, -7.6, 5.2, 7.4).fill(hexToNumber(palette.lantern.glass));
+  g.rect(-2.6, -7.6, 1.6, 7.4).fill({ color: 0x000000, alpha: 0.2 });
+
+  // Corner posts (the cage).
+  for (const cx of [-2.6, 2.6]) {
+    g.rect(cx - 0.4, -8.6, 0.8, 9.4).fill(hexToNumber(palette.lantern.frame));
   }
-  // Leather-wrapped grip band.
-  g.rect(-1.4, -4, 2.8, 4.2).fill({ color: hexToNumber(palette.mantle.shadow), alpha: 0.85 });
-  for (const gy of [-3.2, -1.8, -0.4]) {
-    g.rect(-1.4, gy, 2.8, 0.5).fill({ color: hexToNumber(palette.mantle.base), alpha: 0.7 });
-  }
-  // Filled crook — a curled hook silhouette, not just a thin arc, so it
-  // instantly reads as a shepherd's staff.
-  g.moveTo(0, -22)
-    .bezierCurveTo(-1, -27, -6.4, -27.6, -6.6, -23.4)
-    .bezierCurveTo(-6.8, -19.8, -2.4, -19.6, -1.4, -22.4)
-    .bezierCurveTo(-0.9, -23.8, 0.4, -23.4, 0, -22)
-    .closePath()
-    .fill(hexToNumber(palette.wood.dark));
-  g.moveTo(-0.6, -22.4)
-    .bezierCurveTo(-1.6, -26, -5.8, -26.4, -5.9, -23.4)
-    .bezierCurveTo(-6, -20.8, -3, -20.6, -2.2, -22.6)
-    .stroke({ width: 0.6, color: hexToNumber(palette.wood.highlight), alpha: 0.6 });
-  staff.addChild(g);
-  return staff;
+
+  // Base.
+  g.poly([-3.4, -0.2, 3.4, -0.2, 2.6, 1.4, -2.6, 1.4]).fill(hexToNumber(palette.lantern.frameLight));
+  g.rect(-3.4, -1.2, 6.8, 1).fill(hexToNumber(palette.lantern.frame));
+
+  // Flame glow — layered soft circles standing in for light bloom, warmest and brightest at the core.
+  g.circle(0, -4, 4.2).fill({ color: hexToNumber(palette.lantern.glow), alpha: 0.22 });
+  g.circle(0, -4, 2.6).fill({ color: hexToNumber(palette.lantern.flame), alpha: 0.55 });
+  g.circle(0, -4, 1.3).fill({ color: hexToNumber(palette.lantern.flameCore), alpha: 0.9 });
+
+  lantern.addChild(g);
+
+  const glow = new Container();
+  glow.position.set(0, -4);
+  lantern.addChild(glow);
+
+  return { container: lantern, glow };
 }
 
 function buildShepherdLeg(): Container {
@@ -109,21 +128,25 @@ function buildShepherdArm(withSleeveTrim: boolean): Container {
   return arm;
 }
 
-/** The robe and its draped mantle, grouped so idle breathing can gently scale the torso without touching the facing flip on `body`. */
+/** The robe and its draped mantle, grouped so idle breathing can gently scale the torso without touching the facing flip on `body`. The hem is drawn down to y=0 (where the legs' own top edge sits, see buildShepherdLeg) so the robe and legs read as one continuous body with no gap at the waist. */
 function buildShepherdTorso(): Container {
   const torso = new Container();
 
   const robe = new Graphics();
-  robe.poly([-5.2, -15, 5.2, -15, 7, -3.5, -7, -3.5]).fill(hexToNumber(palette.robe.base));
-  robe.poly([-5.2, -15, -1.2, -15, -2.2, -3.5, -7, -3.5]).fill(hexToNumber(palette.robe.shadow));
-  robe.poly([2.4, -15, 5.2, -15, 7, -3.5, 3.4, -3.5]).fill({ color: hexToNumber(palette.robe.highlight), alpha: 0.5 });
-  robe.rect(-1, -12.6, 0.6, 8.6).fill({ color: hexToNumber(palette.robe.shadow), alpha: 0.55 });
-  robe.rect(1.6, -11.7, 0.6, 7.4).fill({ color: hexToNumber(palette.robe.shadow), alpha: 0.45 });
-  // A couple of soft fabric-fold creases for dimensionality.
-  robe.moveTo(-3.6, -10.8).lineTo(-3, -4.6).stroke({ width: 0.5, color: hexToNumber(palette.robe.shadow), alpha: 0.3 });
-  robe.moveTo(4, -10.4).lineTo(4.6, -4.4).stroke({ width: 0.5, color: hexToNumber(palette.robe.shadow), alpha: 0.3 });
+  robe.poly([-5.2, -15, 5.2, -15, 7.6, 0, -7.6, 0]).fill(hexToNumber(palette.robe.base));
+  robe.poly([-5.2, -15, -1.2, -15, -2.4, 0, -7.6, 0]).fill(hexToNumber(palette.robe.shadow));
+  robe.poly([2.4, -15, 5.2, -15, 7.6, 0, 3.6, 0]).fill({ color: hexToNumber(palette.robe.highlight), alpha: 0.5 });
+  robe.rect(-1, -12.6, 0.6, 11.4).fill({ color: hexToNumber(palette.robe.shadow), alpha: 0.55 });
+  robe.rect(1.6, -11.7, 0.6, 10.5).fill({ color: hexToNumber(palette.robe.shadow), alpha: 0.45 });
+  // A couple of soft fabric-fold creases for dimensionality, now reaching all the way to the hem.
+  robe.moveTo(-3.6, -10.8).lineTo(-3.2, -0.6).stroke({ width: 0.5, color: hexToNumber(palette.robe.shadow), alpha: 0.3 });
+  robe.moveTo(4, -10.4).lineTo(4.8, -0.6).stroke({ width: 0.5, color: hexToNumber(palette.robe.shadow), alpha: 0.3 });
   robe.rect(-6, -8.9, 12, 1.7).fill(hexToNumber(palette.gold));
   robe.rect(-6, -8.9, 12, 0.6).fill({ color: 0xfff0c0, alpha: 0.55 });
+  // A soft hem shadow right where the robe meets the legs — sells the drape
+  // and grounds the transition instead of a hard flat cutoff.
+  robe.rect(-7.6, -2.4, 15.2, 2.4).fill({ color: hexToNumber(palette.robe.shadow), alpha: 0.4 });
+  robe.rect(-7.2, -0.5, 14.4, 0.5).fill({ color: 0x1a0f08, alpha: 0.35 });
 
   // Mantle: a rustier wrap over both shoulders, layered on top of the robe
   // so the silhouette immediately reads as shepherd's clothing.
@@ -165,9 +188,9 @@ export function createShepherdSprite(): ShepherdVisual {
 
   const staffArm = buildShepherdArm(true);
   staffArm.position.set(6, -14);
-  const staff = buildStaff();
-  staff.position.set(0, 6.1);
-  staffArm.addChild(staff);
+  const { container: lantern, glow: lanternGlow } = buildLantern();
+  lantern.position.set(0, 6.1);
+  staffArm.addChild(lantern);
 
   const head = buildShepherdHead();
   head.position.set(0, -20);
@@ -175,7 +198,7 @@ export function createShepherdSprite(): ShepherdVisual {
   body.addChild(shadow, leftLeg, rightLeg, torso, frontArm, staffArm, head);
   container.addChild(body);
 
-  return { container, body, torso, head, leftLeg, rightLeg, frontArm, staffArm };
+  return { container, body, torso, head, leftLeg, rightLeg, frontArm, staffArm, lanternGlow };
 }
 
 // ---------------------------------------------------------------------------
@@ -272,6 +295,42 @@ export interface WolfVisual {
   tail: Container;
   frontLeg: Container;
   backLeg: Container;
+  /** Three pixel "Z" letters floating above the head, hidden unless the wolf is asleep (guarding, per entities.ts). Each child gets its own bob animation. */
+  zzz: Container;
+}
+
+/** One blocky pixel "Z" — top bar, stepped diagonal, bottom bar, built from plain rects so it stays consistent with every other hand-coded shape in this game (no font rendering). */
+function buildZzzLetter(size: number): Graphics {
+  const g = new Graphics();
+  const w = size * 2;
+  const h = size * 2;
+  const t = size * 0.42;
+  g.rect(-w / 2, -h / 2, w, t).fill(0xf5f0e0);
+  g.rect(-w / 2, h / 2 - t, w, t).fill(0xf5f0e0);
+  const steps = 4;
+  for (let i = 0; i < steps; i++) {
+    const fx = -w / 2 + (w - t) * (i / (steps - 1));
+    const fy = -h / 2 + t + (h - 3 * t) * (i / (steps - 1));
+    g.rect(fx, fy, t, t).fill(0xf5f0e0);
+  }
+  return g;
+}
+
+function buildWolfZzz(): Container {
+  const zzz = new Container();
+  const specs = [
+    { size: 1.5, x: 0, y: 0 },
+    { size: 2, x: 2.4, y: -3.4 },
+    { size: 2.5, x: 5.2, y: -7.4 },
+  ];
+  for (const spec of specs) {
+    const letter = buildZzzLetter(spec.size);
+    letter.position.set(spec.x, spec.y);
+    zzz.addChild(letter);
+  }
+  zzz.position.set(2, -13);
+  zzz.visible = false;
+  return zzz;
 }
 
 export function createWolfSprite(): WolfVisual {
@@ -326,10 +385,12 @@ export function createWolfSprite(): WolfVisual {
   }
   backLeg.position.set(-3.6, -3.2);
 
-  body.addChild(tail, backLeg, frontLeg, torso, head);
+  const zzz = buildWolfZzz();
+
+  body.addChild(tail, backLeg, frontLeg, torso, head, zzz);
   container.addChild(body);
 
-  return { container, body, head, tail, frontLeg, backLeg };
+  return { container, body, head, tail, frontLeg, backLeg, zzz };
 }
 
 // ---------------------------------------------------------------------------
@@ -444,31 +505,80 @@ function drawVerticalRails(g: Graphics, y1: number, y2: number, x: number, rng: 
   }
 }
 
-/** A handcrafted post-and-rail fence around the pen, with a gap left open for the gate. */
-export function createFenceOutline(width: number, height: number, gate: { x: number; width: number }): Container {
+export interface PenExtensionShape {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+/**
+ * A handcrafted post-and-rail fence tracing an L-shaped enclosure — the main
+ * pen plus a smaller extension bumped out on its east side — with a gap
+ * left open for the gate. All coordinates are local to the pen's own origin
+ * (the caller positions the returned container at the pen's world x/y), and
+ * `extension` uses the same local space (so its `x` is normally `width`,
+ * flush against the main pen's east wall).
+ */
+export function createFenceOutline(
+  width: number,
+  height: number,
+  gate: { x: number; width: number },
+  extension: PenExtensionShape,
+): Container {
   const container = new Container();
   const g = new Graphics();
   const rng = createRng(2451);
   const postSpacing = 15;
 
-  drawHorizontalRails(g, 0, gate.x, height, rng);
-  drawHorizontalRails(g, gate.x + gate.width, width, height, rng);
-  drawHorizontalRails(g, 0, width, 0, rng);
-  drawVerticalRails(g, 0, height, 0, rng);
-  drawVerticalRails(g, 0, height, width, rng);
+  const exRight = extension.x + extension.width;
+  const exBottom = extension.y + extension.height;
 
-  for (let x = 0; x <= width; x += postSpacing) {
-    drawFencePost(g, x, 0, rng);
+  const walls = [
+    { x1: 0, y1: 0, x2: width, y2: 0 }, // north
+    { x1: width, y1: 0, x2: width, y2: extension.y }, // east, above the extension
+    { x1: width, y1: extension.y, x2: exRight, y2: extension.y }, // extension north
+    { x1: exRight, y1: extension.y, x2: exRight, y2: exBottom }, // extension east
+    { x1: exRight, y1: exBottom, x2: width, y2: exBottom }, // extension south
+    { x1: width, y1: exBottom, x2: width, y2: height }, // east, below the extension
+    { x1: 0, y1: height, x2: gate.x, y2: height }, // south, left of the gate
+    { x1: gate.x + gate.width, y1: height, x2: width, y2: height }, // south, right of the gate
+    { x1: 0, y1: 0, x2: 0, y2: height }, // west
+  ];
+
+  for (const wall of walls) {
+    if (wall.y1 === wall.y2) {
+      drawHorizontalRails(g, Math.min(wall.x1, wall.x2), Math.max(wall.x1, wall.x2), wall.y1, rng);
+    } else {
+      drawVerticalRails(g, Math.min(wall.y1, wall.y2), Math.max(wall.y1, wall.y2), wall.x1, rng);
+    }
   }
-  for (let x = 0; x <= width; x += postSpacing) {
-    if (x > gate.x - postSpacing * 0.4 && x < gate.x + gate.width + postSpacing * 0.4) continue;
-    drawFencePost(g, x, height, rng);
+
+  // Posts at every wall's endpoints plus regular intervals along its length,
+  // deduplicated so the shared corners between walls only get drawn once.
+  const postKeys = new Set<string>();
+  const posts: { x: number; y: number }[] = [];
+  const addPost = (x: number, y: number) => {
+    const key = `${Math.round(x)},${Math.round(y)}`;
+    if (postKeys.has(key)) return;
+    postKeys.add(key);
+    posts.push({ x, y });
+  };
+  for (const wall of walls) {
+    const length = Math.hypot(wall.x2 - wall.x1, wall.y2 - wall.y1);
+    const steps = Math.max(1, Math.round(length / postSpacing));
+    for (let i = 0; i <= steps; i++) {
+      const t = i / steps;
+      addPost(wall.x1 + (wall.x2 - wall.x1) * t, wall.y1 + (wall.y2 - wall.y1) * t);
+    }
   }
-  drawFencePost(g, gate.x, height, rng);
-  drawFencePost(g, gate.x + gate.width, height, rng);
-  for (let y = postSpacing; y < height; y += postSpacing) {
-    drawFencePost(g, 0, y, rng);
-    drawFencePost(g, width, y, rng);
+  addPost(gate.x, height);
+  addPost(gate.x + gate.width, height);
+
+  for (const post of posts) {
+    // Never plant a post inside the gate gap itself.
+    if (Math.abs(post.y - height) < 0.5 && post.x > gate.x + 0.5 && post.x < gate.x + gate.width - 0.5) continue;
+    drawFencePost(g, post.x, post.y, rng);
   }
 
   container.addChild(g);

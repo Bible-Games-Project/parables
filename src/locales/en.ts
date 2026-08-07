@@ -51,6 +51,8 @@ export const en = {
   "lostSheep.objective.search": "Find the lost sheep",
   "lostSheep.objective.escort": "Bring the sheep back to the flock",
   "lostSheep.found": "You found the lost sheep!",
+  "lostSheep.danger.hurry": "I must hurry... the sheep needs me!",
+  "lostSheep.danger.bloodFound": "There is blood... she must be badly injured.",
   "lostSheep.gameOver.title": "The flock needed you...",
   "lostSheep.gameOver.retry": "Try Again",
   "lostSheep.victory.title": "THE LOST SHEEP",

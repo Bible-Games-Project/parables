@@ -67,7 +67,27 @@ export const palette = {
   danger: "#c1443a",
   heart: "#d1453b",
   heartDark: "#8a241d",
-  water: "#3d7f9e",
+  water: {
+    deep: "#1f4d63",
+    base: "#3d7f9e",
+    light: "#6fb0c9",
+    foam: "#e8f4f2",
+  },
+  /** Golden dry straw/hay, for the pen's hay pile and roof thatch. */
+  hay: {
+    shadow: "#a97c33",
+    base: "#d9b35a",
+    light: "#f0d488",
+  },
+  /** A small warm/cool pair for the shepherd's lantern — brass frame, amber flame. */
+  lantern: {
+    frame: "#332a1c",
+    frameLight: "#5c4a30",
+    glass: "#4a3418",
+    flame: "#ffc65a",
+    flameCore: "#fff3c4",
+    glow: "#ffb64d",
+  },
   skin: {
     shadow: "#b17f52",
     base: "#d9a874",
