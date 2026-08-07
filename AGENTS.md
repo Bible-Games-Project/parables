@@ -89,10 +89,6 @@ bgp-admin at `templates/agent-docs/`, so ask before adding it.
   space, not raw pixels.
 - State: Zustand (+ `persist` middleware to localStorage) — `src/store/`. No
   react-router; navigation is a screen enum in `appStore`.
-- Localization: `src/locales/`, flat dot-key dictionary typed from `en.ts` (the
-  source of truth). Every other locale file does `{ ...en }` as a placeholder —
-  all 12 locales are wired end-to-end but only English has real copy so far.
-  Use the `useT()` hook, never hardcode strings.
 - No image-generation tool is available in this environment. All pixel art is
   hand-coded: either small color-grid sprites (`src/pixel-art/pixelGrid.ts`,
   used for icons) or procedural canvas drawing (`src/pixel-art/woodTexture.ts`
@@ -104,6 +100,54 @@ bgp-admin at `templates/agent-docs/`, so ask before adding it.
   reachable via the global install at `/opt/node22/lib/node_modules/playwright`
   (import that path directly, or set `NODE_PATH`), with Chromium at
   `/opt/pw-browsers/chromium`. Don't add `playwright` to package.json for this.
+
+### Localization — permanent architecture, do not bypass
+
+This is a load-bearing project rule, not a suggestion: **every user-facing
+string, with no exceptions, goes through the localization system.** No
+`aria-label="Back"`, no `<p>Loading...</p>`, no literal text in a toast,
+tutorial, achievement, error, or future parable — ever. The `LocaleKey` type
+(`keyof typeof en`) makes `t()` reject anything that isn't a real key at
+compile time, so `bun run typecheck` is the actual enforcement mechanism —
+if you're tempted to add a raw string to a `.tsx` file, that temptation means
+a key is missing from `en.ts`, not that this rule has an exception.
+
+How it fits together (`src/locales/`):
+
+- `en.ts` is the single source of truth: a flat dot-key dictionary
+  (`"lostSheep.objective.search"`, not nested objects), organized by feature
+  prefix (`home.`, `settings.`, `lostSheep.`, `parable.`, `common.`, ...).
+  Adding UI anywhere — a new screen, a new parable, a tutorial hint, an
+  achievement, an error message — means adding keys here first.
+- Every other locale file (`ca`, `de`, `es`, `fr`, `it`, `ja`, `nl`, `pl`,
+  `pt`, `ro`, `ru`) is `export const xx: LocaleDictionary = { ...en };` — a
+  placeholder that inherits every English string automatically. All 12
+  required languages already exist and are wired end-to-end; translating one
+  means replacing that file's placeholder values, never touching any other
+  file, and never touching the loader/hook/store. That's the whole
+  scalability contract — do not add a runtime translation service, a JSON
+  loader, or a build step here; the point of this architecture is that a
+  translator's entire job is editing one flat object.
+- `i18n.ts` holds `LOCALE_CODES`, `LOCALE_NAMES` (each language's name in
+  itself — "日本語", "Français" — never translated) and `DICTIONARIES`, the
+  code -> dictionary map `useT()` reads from.
+- `useT()` (`src/locales/useT.ts`) is the only way to render text: it reads
+  `locale` from `useSettingsStore` (Zustand, `persist` middleware ->
+  localStorage) and returns a `t(key: LocaleKey) => string` closure. Because
+  it's a normal reactive store read, calling `setLocale()` anywhere
+  re-renders every mounted component using `useT()` immediately — no reload,
+  no context provider plumbing needed. The chosen locale persists across
+  reloads automatically via the same `persist` middleware; nothing extra to
+  wire up when adding new state that should also persist.
+- Components that need translated text but shouldn't own its lookup (e.g.
+  `Modal`, `ScreenShell`) take `title: string` as a prop and let the caller
+  pass `t("...")` in — they don't call `useT()` themselves. Keep following
+  that pattern for shared/reusable chrome.
+
+If you ever `git grep -n '"[A-Z][a-z]' src --include=*.tsx` (or similarly
+hunt for literal capitalized JSX text) and find a hit outside a comment,
+that's a bug against this rule, not a stylistic nit — fix it before moving
+on.
 
 ### Traps already hit
 
