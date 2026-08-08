@@ -15,6 +15,8 @@ export interface ParableEncounter {
   /** How close Jesus must be before the Talk button appears. */
   radius: number;
   dialogueLines: LocaleKey[];
+  /** Speaker name shown above each line, same index as `dialogueLines`. */
+  dialogueSpeakers: LocaleKey[];
 }
 
 export const PARABLE_ENCOUNTERS: ParableEncounter[] = [
@@ -23,6 +25,7 @@ export const PARABLE_ENCOUNTERS: ParableEncounter[] = [
     parableId: "lost-sheep",
     position: SHEPHERD_CAMP,
     radius: 46,
-    dialogueLines: ["world.encounter.lostSheep.line1", "world.encounter.lostSheep.line2", "world.encounter.lostSheep.line3"],
+    dialogueLines: ["world.encounter.lostSheep.line1", "world.encounter.lostSheep.line2"],
+    dialogueSpeakers: ["world.speaker.shepherd", "world.speaker.jesus"],
   },
 ];

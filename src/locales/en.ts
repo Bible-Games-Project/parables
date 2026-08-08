@@ -46,11 +46,12 @@ export const en = {
   "common.talk": "Talk",
 
   "world.bookButton": "Book of Parables",
-  "world.encounter.lostSheep.line1": "A shepherd paces beside his pen, counting his flock again and again.",
-  "world.encounter.lostSheep.line2":
-    "“Teacher, please... one of my sheep is missing. I fear the wolves have found her first.”",
-  "world.encounter.lostSheep.line3":
-    "Jesus rests a hand on his shoulder. “Then let me show you what your Father would do.”",
+  "world.hud.stars": "Stars",
+  "world.hud.parables": "Parables",
+  "world.speaker.shepherd": "Shepherd",
+  "world.speaker.jesus": "Jesus",
+  "world.encounter.lostSheep.line1": "One of my sheep has wandered away. I have searched everywhere, but I cannot find her.",
+  "world.encounter.lostSheep.line2": "If one sheep were lost, would you not leave the others and search for it?",
 
   "lostSheep.intro.line1": "The shepherd watches over ninety-nine sheep, safe in their fold.",
   "lostSheep.intro.line2": "But one little sheep has wandered off, alone.",

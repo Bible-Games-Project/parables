@@ -121,22 +121,27 @@ export class AmbientNpc {
     }
   }
 
-  update(dt: number, obstacles: CircleObstacle[] = []): void {
+  update(dt: number, obstacles: CircleObstacle[] = [], walls: Rect[] = []): void {
     this.stateTimer -= dt;
     if (this.stateTimer <= 0) this.pickNext();
     this.idlePhase += dt;
 
-    let velocity: Vector2 = { x: 0, y: 0 };
+    // Velocity is measured from actual net displacement — computed *after* collision
+    // resolution — so an NPC pinned against an obstacle or wall truly reads as stopped
+    // (idle animation) instead of playing a walk cycle while visually stuck in place.
+    const before = { ...this.position };
     if (this.state === "wander") {
-      const before = { ...this.position };
       this.position = steerToward(this.position, this.wanderTarget, this.speed, dt);
-      velocity = { x: this.position.x - before.x, y: this.position.y - before.y };
     }
 
-    // Trees, rocks and houses block ambient villagers too — they slide along an obstacle rather than pathfinding around it.
+    // Trees, rocks, houses and fences block ambient villagers too — they slide along an obstacle rather than pathfinding around it.
     for (const obstacle of obstacles) {
       this.position = resolveCircleVsCircle(this.position, this.radius, obstacle, obstacle.radius);
     }
+    for (const wall of walls) {
+      this.position = resolveCircleVsRect(this.position, this.radius, wall);
+    }
+    const velocity: Vector2 = { x: this.position.x - before.x, y: this.position.y - before.y };
 
     this.sprite.container.position.set(this.position.x, this.position.y);
     this.sprite.container.zIndex = this.position.y;

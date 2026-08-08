@@ -64,6 +64,99 @@ function buildOliveTree(x: number, baseY: number, rng: () => number, trunkTarget
   return g;
 }
 
+/**
+ * The ancient road as a continuous organic dirt ribbon — a filled polygon
+ * traced along both edges of `ROAD_PATH` with a slowly drifting width and a
+ * small per-point wobble, plus a narrower worn center strip and a scatter of
+ * texture dabs. Deliberately not a uniform stroke: that reads as a plastic
+ * pill shape, while this reads as a path people actually walked into being.
+ */
+function buildRoad(ground: Graphics): void {
+  const wobbleRng = createRng(4242);
+  const left: { x: number; y: number }[] = [];
+  const right: { x: number; y: number }[] = [];
+  let width = 13;
+  for (const p of ROAD_PATH) {
+    width += (wobbleRng() - 0.5) * 1.4;
+    width = Math.max(9, Math.min(19, width));
+    const wobble = (wobbleRng() - 0.5) * 2.2;
+    const halfL = width / 2 + wobble;
+    const halfR = width / 2 - wobble;
+    left.push({ x: p.x + p.nx * halfL, y: p.y + p.ny * halfL });
+    right.push({ x: p.x - p.nx * halfR, y: p.y - p.ny * halfR });
+  }
+  const edgePoints: number[] = [];
+  for (const pt of left) edgePoints.push(pt.x, pt.y);
+  for (let i = right.length - 1; i >= 0; i--) edgePoints.push(right[i].x, right[i].y);
+  ground.poly(edgePoints).fill({ color: 0xb99562, alpha: 0.3 });
+
+  const centerRng = createRng(5252);
+  const centerLeft: { x: number; y: number }[] = [];
+  const centerRight: { x: number; y: number }[] = [];
+  let centerWidth = 6;
+  for (const p of ROAD_PATH) {
+    centerWidth += (centerRng() - 0.5) * 0.9;
+    centerWidth = Math.max(3, Math.min(10, centerWidth));
+    const drift = (centerRng() - 0.5) * 3;
+    const half = centerWidth / 2;
+    centerLeft.push({ x: p.x + p.nx * (half + drift), y: p.y + p.ny * (half + drift) });
+    centerRight.push({ x: p.x - p.nx * (half - drift), y: p.y - p.ny * (half - drift) });
+  }
+  const centerPoints: number[] = [];
+  for (const pt of centerLeft) centerPoints.push(pt.x, pt.y);
+  for (let i = centerRight.length - 1; i >= 0; i--) centerPoints.push(centerRight[i].x, centerRight[i].y);
+  ground.poly(centerPoints).fill({ color: 0xd8bd8e, alpha: 0.22 });
+
+  const dabRng = createRng(7171);
+  for (let i = 0; i < ROAD_PATH.length; i += 3) {
+    if (dabRng() > 0.4) continue;
+    const p = ROAD_PATH[i];
+    const off = (dabRng() - 0.5) * width * 0.8;
+    const dx = p.x + p.nx * off;
+    const dy = p.y + p.ny * off;
+    const shade = dabRng() > 0.5 ? 0x9c7c4c : 0xe0c69a;
+    ground.circle(dx, dy, 0.7 + dabRng() * 1.1).fill({ color: shade, alpha: 0.22 });
+  }
+}
+
+/** A short, straight post-and-rail fence run — the same weathered-timber palette as the pen fence, sized for framing a yard edge rather than a full enclosure. Only supports axis-aligned runs (matches how every fence in Israel is placed). Returns its footprint for collision. */
+function buildFenceRun(world: Container, x1: number, y1: number, x2: number, y2: number, rng: () => number): Rect {
+  const g = new Graphics();
+  const horizontal = Math.abs(y2 - y1) < 0.5;
+  const length = horizontal ? Math.abs(x2 - x1) : Math.abs(y2 - y1);
+  const thickness = 2.2;
+
+  if (horizontal) {
+    const left = Math.min(x1, x2);
+    for (const railY of [-3.6, 0.4]) {
+      g.rect(left, y1 + railY, length, 1.6).fill(hexToNumber(palette.fence.base));
+      g.rect(left, y1 + railY, length, 0.6).fill({ color: hexToNumber(palette.fence.highlight), alpha: 0.3 });
+    }
+  } else {
+    const top = Math.min(y1, y2);
+    for (const railX of [-3.6, 0.4]) {
+      g.rect(x1 + railX, top, 1.6, length).fill(hexToNumber(palette.fence.base));
+      g.rect(x1 + railX, top, 0.6, length).fill({ color: hexToNumber(palette.fence.highlight), alpha: 0.3 });
+    }
+  }
+
+  const postCount = Math.max(2, Math.round(length / 15) + 1);
+  for (let i = 0; i < postCount; i++) {
+    const t = i / (postCount - 1);
+    const px = x1 + (x2 - x1) * t;
+    const py = y1 + (y2 - y1) * t;
+    const lean = (rng() - 0.5) * 0.6;
+    g.rect(px - 1.1 + lean, py - 6, 2.2, 8).fill(hexToNumber(palette.fence.dark));
+    g.rect(px - 1.1 + lean, py - 6, 1, 8).fill({ color: hexToNumber(palette.fence.darkest), alpha: 0.5 });
+    g.circle(px + lean, py - 6, 1.1).fill(hexToNumber(palette.fence.mid));
+  }
+
+  world.addChild(g);
+  return horizontal
+    ? { x: Math.min(x1, x2), y: y1 - thickness * 2, width: length, height: thickness * 4 }
+    : { x: x1 - thickness * 2, y: Math.min(y1, y2), width: thickness * 4, height: length };
+}
+
 function buildVineRow(g: Graphics, x: number, y: number, length: number, rng: () => number): void {
   const stakeCount = Math.max(2, Math.round(length / 14));
   for (let i = 0; i < stakeCount; i++) {
@@ -229,12 +322,8 @@ export function buildIsraelTerrain(world: Container, totalStars: number): Terrai
     }
   }
 
-  // The worn road itself — a soft dirt ribbon the whole world hangs off of.
-  for (let i = 1; i < ROAD_PATH.length; i++) {
-    const a = ROAD_PATH[i - 1];
-    const b = ROAD_PATH[i];
-    ground.moveTo(a.x, a.y).lineTo(b.x, b.y).stroke({ width: 15, color: 0xc7a874, alpha: 0.28, cap: "round" });
-  }
+  // The worn road itself — a continuous organic dirt ribbon the whole world hangs off of.
+  buildRoad(ground);
 
   buildRiverAndBridge(world, isGateUnlocked(BRIDGE_GATE, totalStars));
   world.addChild(ground);
@@ -307,7 +396,7 @@ export function buildIsraelTerrain(world: Container, totalStars: number): Terrai
       const x = HILL_VIEWPOINT.x + Math.cos(angle) * dist;
       const y = HILL_VIEWPOINT.y + Math.sin(angle) * dist * 0.6;
       const scale = 0.6 + rng() * 0.9;
-      if (scale > 1.05) {
+      if (scale > 0.75) {
         const rock = buildRock(x, y, rng, scale);
         rock.zIndex = y;
         dynamicLayer.addChild(rock);
@@ -331,6 +420,9 @@ export function buildIsraelTerrain(world: Container, totalStars: number): Terrai
       if (rng() < 0.5) addTree(x, y, rng, true);
       else buildBush(x, y, rng, bushBatch);
     }
+    // A small yard fence bordering the house's southwest corner.
+    walls.push(buildFenceRun(world, FARMHOUSE.x - 62, FARMHOUSE.y + 28, FARMHOUSE.x + 6, FARMHOUSE.y + 28, rng));
+    walls.push(buildFenceRun(world, FARMHOUSE.x - 62, FARMHOUSE.y + 28, FARMHOUSE.x - 62, FARMHOUSE.y - 6, rng));
   }
 
   // --- Shepherd camp (the encounter lives here — see encounters.ts) ---
@@ -356,8 +448,17 @@ export function buildIsraelTerrain(world: Container, totalStars: number): Terrai
       if (y > RIVER.yTop - 20 && y < RIVER.yBottom + 20) continue;
       const roll = rng();
       if (roll < 0.5) buildBush(x, y, rng, bushBatch);
-      else if (roll < 0.75) buildRock(x, y, rng, 0.5 + rng() * 0.5, rockBatch);
-      else addTree(x, y, rng, rng() < 0.3);
+      else if (roll < 0.75) {
+        const scale = 0.4 + rng() * 0.7;
+        if (scale > 0.75) {
+          const rock = buildRock(x, y, rng, scale);
+          rock.zIndex = y;
+          dynamicLayer.addChild(rock);
+          obstacles.push({ x, y, radius: 5 * scale * 0.7 });
+        } else {
+          buildRock(x, y, rng, scale, rockBatch);
+        }
+      } else addTree(x, y, rng, rng() < 0.3);
     }
   }
 

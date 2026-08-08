@@ -7,6 +7,14 @@
   z-index: 20;
 }
 
+.speaker {
+  font-size: 0.7rem;
+  color: #e8b23d;
+  letter-spacing: 0.08em;
+  text-shadow: 2px 2px 0 rgba(0, 0, 0, 0.45);
+  margin-bottom: 0.5rem;
+}
+
 .text {
   font-size: 0.75rem;
   line-height: 1.9;
@@ -17,6 +25,23 @@
 
 .actions {
   display: flex;
-  justify-content: flex-end;
+  justify-content: space-between;
+  align-items: center;
   gap: 0.6rem;
+}
+
+/* Skip is the secondary action: smaller and lower-contrast, anchored left. */
+.skip {
+  opacity: 0.62;
+  transform: scale(0.82);
+  transform-origin: left center;
+}
+
+.skip:hover:not(:disabled) {
+  opacity: 0.85;
+}
+
+/* Continue is the primary action: larger and brighter, anchored right. */
+.continue {
+  filter: drop-shadow(0 0 5px rgba(232, 178, 61, 0.4));
 }

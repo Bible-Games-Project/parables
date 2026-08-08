@@ -122,11 +122,17 @@ export const palette = {
     base: "#4a2f22",
     highlight: "#6b452f",
   },
-  /** Soft warm pastel clothing for the shepherd — clay/terracotta rather than a saturated color, so he stays warm and gentle against the world instead of popping as a cool accent. */
+  /** Soft warm pastel clothing for the shepherd — clay/terracotta rather than a saturated color, so he stays warm and gentle against the world instead of popping as a cool accent. Used by the Lost Sheep parable's own hand-tuned shepherd sprite. */
   robe: {
     shadow: "#a8715a",
     base: "#dda07c",
     highlight: "#f5cda3",
+  },
+  /** A deeper ochre-brown robe for the Israel-world shepherd archetype — same warm family as `robe`, but pulled further from the skin tone so the generic humanoid rig (thinner shading than the Lost Sheep sprite) still reads clearly as clothed. */
+  shepherdRobe: {
+    shadow: "#7a4f30",
+    base: "#c08752",
+    highlight: "#e0b385",
   },
   /** A rustier wrap over one shoulder, layered on top of the robe so the clothing silhouette reads clearly as a shepherd's mantle. */
   mantle: {
@@ -157,6 +163,30 @@ export const palette = {
     shadow: "#5c7a86",
     base: "#8fabb6",
     highlight: "#c3d6dc",
+  },
+  /** A dusty mauve/plum robe reserved for elderly villagers — stays in the warm-pastel family while reading as a distinct, older generation. */
+  elderRobe: {
+    shadow: "#7a6478",
+    base: "#a68ba0",
+    highlight: "#cbb5c4",
+  },
+  /** A dusty coral robe for younger villagers (young adults and teens) — shifted toward red/pink rather than skin's orange-tan so it still reads as clothing on archetypes with no mantle to break up the silhouette. */
+  youthRobe: {
+    shadow: "#b06058",
+    base: "#dd8f80",
+    highlight: "#f0bcae",
+  },
+  /** Soft buttery yellow, reserved for children — the lightest, gentlest tone in the cast. */
+  childRobe: {
+    shadow: "#b8a15a",
+    base: "#e8d089",
+    highlight: "#f7ecc0",
+  },
+  /** Desaturated warm gray hair, for elderly villagers. */
+  hairGray: {
+    shadow: "#6b6560",
+    base: "#918b84",
+    highlight: "#b8b2aa",
   },
   wool: {
     shadow: "#cbb98f",

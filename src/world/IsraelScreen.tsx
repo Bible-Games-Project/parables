@@ -9,15 +9,27 @@ import { Jesus, AmbientNpc } from "@/world/entities";
 import { buildIsraelTerrain } from "@/world/terrain";
 import { activeGateWalls } from "@/world/gates";
 import { PARABLE_ENCOUNTERS, type ParableEncounter } from "@/world/encounters";
-import { FARMHOUSE, FOREST_PATCH, HILL_VIEWPOINT, JESUS_START, OLIVE_GROVE, VINEYARD, WHEAT_FIELD, WORLD_HEIGHT, WORLD_WIDTH } from "@/world/map";
+import {
+  FARMHOUSE,
+  FOREST_PATCH,
+  HILL_VIEWPOINT,
+  JESUS_START,
+  OLIVE_GROVE,
+  SHEPHERD_CAMP,
+  VINEYARD,
+  WHEAT_FIELD,
+  WORLD_HEIGHT,
+  WORLD_WIDTH,
+} from "@/world/map";
 import type { VillagerVariant } from "@/world/sprites";
 import { useAppStore } from "@/store/appStore";
 import { useProgressStore } from "@/store/progressStore";
 import { useWorldStore } from "@/store/worldStore";
-import { getParable } from "@/parables/registry";
+import { getParable, PARABLES } from "@/parables/registry";
 import { DialogueOverlay } from "@/ui/DialogueOverlay";
 import { PixelButton } from "@/ui/PixelButton";
 import { PixelIconButton } from "@/ui/PixelIconButton";
+import { WorldHud } from "@/world/WorldHud";
 import { backIcon, bookIcon } from "@/pixel-art/icons";
 import { useT } from "@/locales/useT";
 import styles from "@/world/IsraelScreen.module.css";
@@ -25,12 +37,13 @@ import styles from "@/world/IsraelScreen.module.css";
 type Phase = "explore" | "dialogue" | "fading";
 
 const AMBIENT_NPCS: { position: Vector2; variant: VillagerVariant; seed: number; wanderRadius: number }[] = [
-  { position: { x: OLIVE_GROVE.x + 20, y: OLIVE_GROVE.y + 30 }, variant: "farmer", seed: 11, wanderRadius: 60 },
-  { position: { x: WHEAT_FIELD.x, y: WHEAT_FIELD.y - 25 }, variant: "farmer", seed: 22, wanderRadius: 50 },
-  { position: { x: FOREST_PATCH.x - 30, y: FOREST_PATCH.y + 40 }, variant: "traveller", seed: 33, wanderRadius: 40 },
-  { position: { x: FARMHOUSE.x - 55, y: FARMHOUSE.y + 20 }, variant: "traveller", seed: 44, wanderRadius: 45 },
-  { position: { x: VINEYARD.x + 15, y: VINEYARD.y + 35 }, variant: "farmer", seed: 55, wanderRadius: 40 },
-  { position: { x: HILL_VIEWPOINT.x + 30, y: HILL_VIEWPOINT.y + 20 }, variant: "traveller", seed: 66, wanderRadius: 50 },
+  { position: { x: OLIVE_GROVE.x + 20, y: OLIVE_GROVE.y + 30 }, variant: "adultWoman", seed: 11, wanderRadius: 60 },
+  { position: { x: WHEAT_FIELD.x, y: WHEAT_FIELD.y - 25 }, variant: "adultMan", seed: 22, wanderRadius: 50 },
+  { position: { x: FOREST_PATCH.x - 30, y: FOREST_PATCH.y + 40 }, variant: "youngMan", seed: 33, wanderRadius: 40 },
+  { position: { x: FARMHOUSE.x - 20, y: FARMHOUSE.y + 24 }, variant: "elderWoman", seed: 44, wanderRadius: 30 },
+  { position: { x: VINEYARD.x + 15, y: VINEYARD.y + 35 }, variant: "teen", seed: 55, wanderRadius: 40 },
+  { position: { x: HILL_VIEWPOINT.x + 30, y: HILL_VIEWPOINT.y + 20 }, variant: "youngWoman", seed: 66, wanderRadius: 50 },
+  { position: { x: SHEPHERD_CAMP.x - 14, y: SHEPHERD_CAMP.y - 6 }, variant: "shepherd", seed: 77, wanderRadius: 20 },
 ];
 
 interface RuntimeRefs {
@@ -71,6 +84,7 @@ export function IsraelScreen() {
   const navigate = useAppStore((state) => state.navigate);
   const openParable = useAppStore((state) => state.openParable);
   const totalStars = useProgressStore((state) => state.totalStars());
+  const completedCount = useProgressStore((state) => state.completedParableIds.length);
   const jesusPosition = useWorldStore((state) => state.jesusPosition);
   const setJesusPosition = useWorldStore((state) => state.setJesusPosition);
 
@@ -124,7 +138,7 @@ export function IsraelScreen() {
         current.npcs.map((npc) => ({ x: npc.position.x, y: npc.position.y, radius: npc.radius })),
       );
       current.jesus.update(dt, direction, circleObstacles, current.walls, { width: WORLD_WIDTH, height: WORLD_HEIGHT });
-      for (const npc of current.npcs) npc.update(dt, current.obstacles);
+      for (const npc of current.npcs) npc.update(dt, current.obstacles, current.walls);
 
       current.camera.update(current.jesus.position, dt);
       current.world.position.set(current.camera.x, current.camera.y);
@@ -201,6 +215,8 @@ export function IsraelScreen() {
     <div style={{ position: "relative", width: "100%", height: "100%" }}>
       <PixiStage onReady={onReady} className="" />
 
+      <WorldHud stars={totalStars} completed={completedCount} total={PARABLES.length} />
+
       {phase === "explore" && (
         <>
           <PixelIconButton
@@ -227,7 +243,12 @@ export function IsraelScreen() {
       )}
 
       {phase === "dialogue" && talkingEncounter && (
-        <DialogueOverlay seed={talkingEncounter.id} lines={talkingEncounter.dialogueLines} onComplete={handleDialogueComplete} />
+        <DialogueOverlay
+          seed={talkingEncounter.id}
+          lines={talkingEncounter.dialogueLines}
+          speakers={talkingEncounter.dialogueSpeakers}
+          onComplete={handleDialogueComplete}
+        />
       )}
 
       {phase === "fading" && fadeParable && <FadeTransition title={t(fadeParable.titleKey)} onDone={handleFadeDone} />}
