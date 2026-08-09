@@ -75,13 +75,20 @@ function buildRoad(ground: Graphics): void {
   const wobbleRng = createRng(4242);
   const left: { x: number; y: number }[] = [];
   const right: { x: number; y: number }[] = [];
-  let width = 13;
+  let widthTrend = 0;
+  let maxWidth = 13;
   for (const p of ROAD_PATH) {
-    width += (wobbleRng() - 0.5) * 1.4;
-    width = Math.max(9, Math.min(19, width));
-    const wobble = (wobbleRng() - 0.5) * 2.2;
-    const halfL = width / 2 + wobble;
-    const halfR = width / 2 - wobble;
+    // Two layers of noise: a slow drifting trend (the road gradually widens/narrows
+    // over stretches) plus a rough high-frequency jitter on top of it (no two steps
+    // the same), so the edges never settle into the smooth, regular wave a single
+    // noise layer produces — real foot-worn dirt doesn't have a period.
+    widthTrend += (wobbleRng() - 0.5) * 1.1;
+    widthTrend = Math.max(-4.5, Math.min(4.5, widthTrend));
+    const width = Math.max(6, Math.min(23, 13 + widthTrend + (wobbleRng() - 0.5) * 3.4));
+    maxWidth = Math.max(maxWidth, width);
+    const wobble = (wobbleRng() - 0.5) * 4.2;
+    const halfL = width / 2 + wobble + (wobbleRng() - 0.5) * 1.6;
+    const halfR = width / 2 - wobble + (wobbleRng() - 0.5) * 1.6;
     left.push({ x: p.x + p.nx * halfL, y: p.y + p.ny * halfL });
     right.push({ x: p.x - p.nx * halfR, y: p.y - p.ny * halfR });
   }
@@ -95,9 +102,9 @@ function buildRoad(ground: Graphics): void {
   const centerRight: { x: number; y: number }[] = [];
   let centerWidth = 6;
   for (const p of ROAD_PATH) {
-    centerWidth += (centerRng() - 0.5) * 0.9;
-    centerWidth = Math.max(3, Math.min(10, centerWidth));
-    const drift = (centerRng() - 0.5) * 3;
+    centerWidth += (centerRng() - 0.5) * 1.3;
+    centerWidth = Math.max(2, Math.min(11, centerWidth));
+    const drift = (centerRng() - 0.5) * 4.4;
     const half = centerWidth / 2;
     centerLeft.push({ x: p.x + p.nx * (half + drift), y: p.y + p.ny * (half + drift) });
     centerRight.push({ x: p.x - p.nx * (half - drift), y: p.y - p.ny * (half - drift) });
@@ -107,11 +114,31 @@ function buildRoad(ground: Graphics): void {
   for (let i = centerRight.length - 1; i >= 0; i--) centerPoints.push(centerRight[i].x, centerRight[i].y);
   ground.poly(centerPoints).fill({ color: 0xd8bd8e, alpha: 0.22 });
 
+  // Worn patches — irregular blotches of a different dirt tone, straddling the road at
+  // sparse, uneven intervals, like spots where years of feet wore the ground bare or
+  // rain pooled and dried a different shade.
+  const patchRng = createRng(3131);
+  for (let i = 0; i < ROAD_PATH.length; i += 7) {
+    if (patchRng() > 0.22) continue;
+    const p = ROAD_PATH[i];
+    const off = (patchRng() - 0.5) * maxWidth * 0.5;
+    const cx = p.x + p.nx * off;
+    const cy = p.y + p.ny * off;
+    const worn = patchRng() > 0.5;
+    const shade = worn ? 0x8f6f43 : 0xe4cd9c;
+    const blobCount = 2 + Math.floor(patchRng() * 3);
+    for (let b = 0; b < blobCount; b++) {
+      const bx = cx + (patchRng() - 0.5) * 10;
+      const by = cy + (patchRng() - 0.5) * 6;
+      ground.circle(bx, by, 2.5 + patchRng() * 3.5).fill({ color: shade, alpha: worn ? 0.16 : 0.14 });
+    }
+  }
+
   const dabRng = createRng(7171);
   for (let i = 0; i < ROAD_PATH.length; i += 3) {
     if (dabRng() > 0.4) continue;
     const p = ROAD_PATH[i];
-    const off = (dabRng() - 0.5) * width * 0.8;
+    const off = (dabRng() - 0.5) * maxWidth * 0.8;
     const dx = p.x + p.nx * off;
     const dy = p.y + p.ny * off;
     const shade = dabRng() > 0.5 ? 0x9c7c4c : 0xe0c69a;
@@ -190,8 +217,8 @@ function buildWheatPatch(ground: Graphics, cx: number, cy: number, radius: numbe
   }
 }
 
-/** A small clay-walled house with a terracotta roof. Returns its footprint rect for collision. */
-function buildHouse(world: Container, x: number, y: number, rng: () => number): Rect {
+/** A small clay-walled house with a terracotta roof. Y-sorted against characters (so Jesus can walk behind it), with a base-footprint rect for collision — the roof's overhang and peak extend visually beyond the collider, same as a tree's canopy over its trunk. Returns the footprint rect. */
+function buildHouse(dynamicLayer: Container, x: number, y: number, rng: () => number): Rect {
   const g = new Graphics();
   const w = 34 + rng() * 8;
   const h = 22;
@@ -212,11 +239,13 @@ function buildHouse(world: Container, x: number, y: number, rng: () => number): 
   const doorW = 6;
   g.rect(x - doorW / 2, y - 12, doorW, 12).fill(hexToNumber(palette.wood.darker));
   g.rect(x - w / 3, top + 6, 5, 5).fill({ color: hexToNumber(palette.wood.darker), alpha: 0.8 });
-  world.addChild(g);
+  g.zIndex = y;
+  dynamicLayer.addChild(g);
   return { x: left, y: top, width: w, height: h };
 }
 
-function buildTent(world: Container, x: number, y: number, rng: () => number): void {
+/** A shepherd's tent. Y-sorted like a house, with a base-footprint circle collider (narrower than the full triangle, matching the "collider at the base" rule). Returns the collider. */
+function buildTent(dynamicLayer: Container, x: number, y: number, rng: () => number): TerrainObstacle {
   const g = new Graphics();
   const w = 26;
   const h = 16;
@@ -224,11 +253,14 @@ function buildTent(world: Container, x: number, y: number, rng: () => number): v
   g.poly([x - w / 2, y, x, y - h, x + w / 2, y]).fill(hexToNumber(palette.fence.mid));
   g.poly([x - w / 2, y, x, y - h, x, y]).fill({ color: hexToNumber(palette.fence.dark), alpha: 0.6 });
   g.poly([x - 3, y, x + 3, y - h * 0.4, x + 3, y]).fill(hexToNumber(palette.fence.darkest));
-  world.addChild(g);
+  g.zIndex = y;
+  dynamicLayer.addChild(g);
   void rng;
+  return { x, y: y - 3, radius: 9 };
 }
 
-function buildCampfire(world: Container, x: number, y: number): void {
+/** A campfire — flat, ground-level dressing (same always-below-characters treatment as a bush), but still solid: returns its collider. */
+function buildCampfire(world: Container, x: number, y: number): TerrainObstacle {
   const g = new Graphics();
   g.ellipse(x, y + 1, 7, 2.6).fill({ color: hexToNumber(palette.foliage.shadow), alpha: 0.3 });
   for (const angle of [0, 60, 120, 180, 240, 300]) {
@@ -239,11 +271,13 @@ function buildCampfire(world: Container, x: number, y: number): void {
   g.circle(x, y - 1.5, 1.4).fill({ color: hexToNumber(palette.lantern.flame), alpha: 0.75 });
   g.circle(x, y - 1.8, 0.7).fill({ color: hexToNumber(palette.lantern.flameCore), alpha: 0.9 });
   world.addChild(g);
+  return { x, y, radius: 4 };
 }
 
-/** A resting cluster of sheep silhouettes — camp dressing only, not the animated flock rig used inside a parable. */
-function buildRestingSheep(world: Container, x: number, y: number, rng: () => number): void {
+/** A resting cluster of sheep silhouettes — camp dressing only, not the animated flock rig used inside a parable. Returns each sheep's collider. */
+function buildRestingSheep(world: Container, x: number, y: number, rng: () => number): TerrainObstacle[] {
   const g = new Graphics();
+  const colliders: TerrainObstacle[] = [];
   for (let i = 0; i < 3; i++) {
     const sx = x + (rng() - 0.5) * 16;
     const sy = y + (rng() - 0.5) * 8;
@@ -252,8 +286,10 @@ function buildRestingSheep(world: Container, x: number, y: number, rng: () => nu
     g.circle(sx, sy - 0.5, 3.4).fill(hexToNumber(palette.wool.base));
     g.circle(sx + 2.6, sy, 2.6).fill(hexToNumber(palette.wool.base));
     g.circle(sx + 4.4, sy + 0.4, 1.6).fill(hexToNumber(palette.ink));
+    colliders.push({ x: sx + 1, y: sy, radius: 4.5 });
   }
   world.addChild(g);
+  return colliders;
 }
 
 function buildRiverAndBridge(world: Container, bridgeUnlocked: boolean): void {
@@ -412,7 +448,7 @@ export function buildIsraelTerrain(world: Container, totalStars: number): Terrai
   // --- Farmhouse ---
   {
     const rng = createRng(606);
-    const houseWall = buildHouse(world, FARMHOUSE.x, FARMHOUSE.y, rng);
+    const houseWall = buildHouse(dynamicLayer, FARMHOUSE.x, FARMHOUSE.y, rng);
     walls.push(houseWall);
     for (let i = 0; i < 3; i++) {
       const x = FARMHOUSE.x + 40 + (rng() - 0.5) * 30;
@@ -428,9 +464,9 @@ export function buildIsraelTerrain(world: Container, totalStars: number): Terrai
   // --- Shepherd camp (the encounter lives here — see encounters.ts) ---
   {
     const rng = createRng(707);
-    buildTent(world, SHEPHERD_CAMP.x + 30, SHEPHERD_CAMP.y - 10, rng);
-    buildCampfire(world, SHEPHERD_CAMP.x + 5, SHEPHERD_CAMP.y + 8);
-    buildRestingSheep(world, SHEPHERD_CAMP.x - 30, SHEPHERD_CAMP.y + 4, rng);
+    obstacles.push(buildTent(dynamicLayer, SHEPHERD_CAMP.x + 30, SHEPHERD_CAMP.y - 10, rng));
+    obstacles.push(buildCampfire(world, SHEPHERD_CAMP.x + 5, SHEPHERD_CAMP.y + 8));
+    obstacles.push(...buildRestingSheep(world, SHEPHERD_CAMP.x - 30, SHEPHERD_CAMP.y + 4, rng));
     for (let i = 0; i < 3; i++) {
       const x = SHEPHERD_CAMP.x + (rng() - 0.5) * 90;
       const y = SHEPHERD_CAMP.y - 40 - rng() * 20;

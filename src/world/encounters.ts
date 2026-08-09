@@ -17,15 +17,41 @@ export interface ParableEncounter {
   dialogueLines: LocaleKey[];
   /** Speaker name shown above each line, same index as `dialogueLines`. */
   dialogueSpeakers: LocaleKey[];
+  /**
+   * A short follow-up exchange, played automatically (no Talk button needed)
+   * the moment the player returns to Israel after completing this encounter's
+   * parable live — the NPC reacting to the lesson rather than the
+   * conversation just hanging. Every encounter should have one: it's what
+   * closes the loop opened by `dialogueLines`.
+   */
+  returnDialogueLines: LocaleKey[];
+  returnDialogueSpeakers: LocaleKey[];
 }
 
+/**
+ * Every encounter follows the same narrative shape (see AGENTS.md's "parable
+ * encounter narrative rule"): the NPC's opening lines are a human problem —
+ * never the literal subject of the parable — and the return lines are their
+ * emotional reaction once they've understood the lesson.
+ */
 export const PARABLE_ENCOUNTERS: ParableEncounter[] = [
   {
     id: "shepherd-searching",
     parableId: "lost-sheep",
     position: SHEPHERD_CAMP,
     radius: 46,
-    dialogueLines: ["world.encounter.lostSheep.line1", "world.encounter.lostSheep.line2"],
-    dialogueSpeakers: ["world.speaker.shepherd", "world.speaker.jesus"],
+    dialogueLines: [
+      "world.encounter.lostSheep.line1",
+      "world.encounter.lostSheep.line2",
+      "world.encounter.lostSheep.line3",
+      "world.encounter.lostSheep.line4",
+    ],
+    dialogueSpeakers: ["world.speaker.shepherd", "world.speaker.jesus", "world.speaker.shepherd", "world.speaker.jesus"],
+    returnDialogueLines: [
+      "world.encounter.lostSheep.return1",
+      "world.encounter.lostSheep.return2",
+      "world.encounter.lostSheep.return3",
+    ],
+    returnDialogueSpeakers: ["world.speaker.shepherd", "world.speaker.jesus", "world.speaker.shepherd"],
   },
 ];

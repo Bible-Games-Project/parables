@@ -1,6 +1,7 @@
 import type { Vector2 } from "@/engine/input";
 import {
   clampToBounds,
+  distance,
   resolveCircleVsCircle,
   resolveCircleVsRect,
   type CircleObstacle,
@@ -10,9 +11,19 @@ import { steerToward } from "@/engine/chaseAI";
 import { createRng } from "@/pixel-art/prng";
 import { createJesusSprite, createVillagerSprite, type HumanoidVisual, type VillagerVariant } from "@/world/sprites";
 
+/**
+ * Sets left/right facing from a horizontal velocity/direction sample. Uses a
+ * one-sided hysteresis (a bigger push is required to flip away from the
+ * current facing than to reinforce it) so a noisy or momentarily-near-zero
+ * signal — e.g. an NPC braking right as it reaches its wander target — can
+ * never flip the facing back and forth from one frame to the next. Facing is
+ * always exactly one of left/right; there is no "both at once" state.
+ */
 function applyFacing(body: { scale: { x: number } }, velocityX: number): void {
-  if (velocityX > 0.05) body.scale.x = 1;
-  else if (velocityX < -0.05) body.scale.x = -1;
+  const facingRight = body.scale.x >= 0;
+  const flipThreshold = 0.28;
+  if (facingRight && velocityX < -flipThreshold) body.scale.x = -1;
+  else if (!facingRight && velocityX > flipThreshold) body.scale.x = 1;
 }
 
 /** The player's character in Israel — walks and idles, same construction technique as the Lost Sheep shepherd, but no combat or health: this is an exploration hub, not a rescue level. */
@@ -130,7 +141,12 @@ export class AmbientNpc {
     // resolution — so an NPC pinned against an obstacle or wall truly reads as stopped
     // (idle animation) instead of playing a walk cycle while visually stuck in place.
     const before = { ...this.position };
-    if (this.state === "wander") {
+    // `steerToward` moves at constant speed and never slows down, so without an arrival
+    // radius the NPC would fly past its target every frame and immediately steer back,
+    // flipping its direction (and therefore its left/right facing) every single tick —
+    // the exact cause of the flicker/duplicated-accessory bug. Once within one frame's
+    // step of the target we simply stop, giving movement direction a single stable value.
+    if (this.state === "wander" && distance(this.position, this.wanderTarget) > this.speed * dt) {
       this.position = steerToward(this.position, this.wanderTarget, this.speed, dt);
     }
 
@@ -145,9 +161,13 @@ export class AmbientNpc {
 
     this.sprite.container.position.set(this.position.x, this.position.y);
     this.sprite.container.zIndex = this.position.y;
-    applyFacing(this.sprite.body, velocity.x);
+    // `velocity` is a raw per-frame world-space delta (speed * dt), not a normalized
+    // direction — normalizing before handing it to `applyFacing` keeps its hysteresis
+    // threshold meaningful regardless of this NPC's speed or the frame's dt.
+    const speedMag = Math.hypot(velocity.x, velocity.y);
+    applyFacing(this.sprite.body, speedMag > 0.001 ? velocity.x / speedMag : 0);
 
-    const moving = Math.hypot(velocity.x, velocity.y) > 0.01;
+    const moving = speedMag > 0.01;
     this.walkBlend += ((moving ? 1 : 0) - this.walkBlend) * Math.min(1, dt * 5);
     this.walkPhase += dt * 7;
     const walkEase = this.walkBlend * this.walkBlend * (3 - 2 * this.walkBlend);

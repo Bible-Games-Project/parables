@@ -34,7 +34,7 @@ import { backIcon, bookIcon } from "@/pixel-art/icons";
 import { useT } from "@/locales/useT";
 import styles from "@/world/IsraelScreen.module.css";
 
-type Phase = "explore" | "dialogue" | "fading";
+type Phase = "explore" | "dialogue" | "fading" | "returning";
 
 const AMBIENT_NPCS: { position: Vector2; variant: VillagerVariant; seed: number; wanderRadius: number }[] = [
   { position: { x: OLIVE_GROVE.x + 20, y: OLIVE_GROVE.y + 30 }, variant: "adultWoman", seed: 11, wanderRadius: 60 },
@@ -87,10 +87,22 @@ export function IsraelScreen() {
   const completedCount = useProgressStore((state) => state.completedParableIds.length);
   const jesusPosition = useWorldStore((state) => state.jesusPosition);
   const setJesusPosition = useWorldStore((state) => state.setJesusPosition);
+  const setPendingReturnEncounterId = useWorldStore((state) => state.setPendingReturnEncounterId);
 
   const runtimeRef = useRef<RuntimeRefs | null>(null);
   const phaseRef = useRef<Phase>("explore");
-  const [phase, setPhase] = useState<Phase>("explore");
+  /**
+   * If a live Talk conversation sent the player into a completed parable, resume right
+   * here with the NPC's reaction instead of leaving that conversation hanging — read
+   * once at mount (a plain store getter, not a subscription: this only ever matters for
+   * the very first render of a fresh Israel session) and immediately consumed below.
+   */
+  const [returningEncounter] = useState<ParableEncounter | null>(() => {
+    const pendingId = useWorldStore.getState().pendingReturnEncounterId;
+    const encounter = pendingId ? PARABLE_ENCOUNTERS.find((entry) => entry.id === pendingId) : undefined;
+    return encounter && useProgressStore.getState().isCompleted(encounter.parableId) ? encounter : null;
+  });
+  const [phase, setPhase] = useState<Phase>(returningEncounter ? "returning" : "explore");
   const [activeEncounter, setActiveEncounter] = useState<ParableEncounter | null>(null);
   /** The encounter Jesus is actually talking to — captured from `activeEncounter` the moment Talk is pressed, so it survives the proximity check clearing `activeEncounter` once movement stops during dialogue/fading. */
   const [talkingEncounter, setTalkingEncounter] = useState<ParableEncounter | null>(null);
@@ -99,6 +111,12 @@ export function IsraelScreen() {
   useEffect(() => {
     phaseRef.current = phase;
   }, [phase]);
+
+  useEffect(() => {
+    if (returningEncounter) setPendingReturnEncounterId(null);
+    // Mount-only: this consumes whatever was pending when the screen first appeared.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const onReady = useCallback((app: Application) => {
     const world = new Container();
@@ -194,7 +212,12 @@ export function IsraelScreen() {
   const handleFadeDone = () => {
     const current = runtimeRef.current;
     if (current) setJesusPosition(current.jesus.position);
+    if (talkingEncounter) setPendingReturnEncounterId(talkingEncounter.id);
     if (fadeParableId) openParable(fadeParableId);
+  };
+
+  const handleReturnDialogueComplete = () => {
+    setPhase("explore");
   };
 
   const handleBackToHome = () => {
@@ -252,6 +275,15 @@ export function IsraelScreen() {
       )}
 
       {phase === "fading" && fadeParable && <FadeTransition title={t(fadeParable.titleKey)} onDone={handleFadeDone} />}
+
+      {phase === "returning" && returningEncounter && (
+        <DialogueOverlay
+          seed={`${returningEncounter.id}-return`}
+          lines={returningEncounter.returnDialogueLines}
+          speakers={returningEncounter.returnDialogueSpeakers}
+          onComplete={handleReturnDialogueComplete}
+        />
+      )}
     </div>
   );
 }

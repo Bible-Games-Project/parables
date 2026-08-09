@@ -183,6 +183,15 @@ function buildTorso(colors: HumanoidColors, shape: ResolvedShape): Container {
   robe.rect(-5.6, -8.3, 11.2, 0.5).fill({ color: 0xfff0c0, alpha: 0.5 });
   robe.rect(-7, hemY - 2.2, 14, 2.2).fill({ color: hexToNumber(colors.robeShadow), alpha: 0.35 });
 
+  if (shape.hemLength === "short") {
+    // A knee-length tunic ends well above where the leg graphics begin (y=0) — without
+    // this, that stretch is fully transparent, reading as a gap between torso and legs.
+    // Filling it with skin tone (tapering from the tunic's own hem width down to the
+    // legs' stance width) makes the silhouette read as a continuous, clothed body.
+    robe.poly([-7, hemY, 7, hemY, 4, 0, -4, 0]).fill(hexToNumber(palette.skin.base));
+    robe.poly([-7, hemY, 0, hemY, 0.3, 0, -4, 0]).fill({ color: hexToNumber(palette.skin.shadow), alpha: 0.3 });
+  }
+
   torso.addChild(robe);
 
   if (shape.mantle) {

@@ -149,6 +149,49 @@ hunt for literal capitalized JSX text) and find a hit outside a comment,
 that's a bug against this rule, not a stylistic nit — fix it before moving
 on.
 
+### Parable encounter narrative structure — permanent design rule
+
+Every encounter in Israel (`src/world/encounters.ts`) that leads into a
+parable must follow this shape, not just the first one:
+
+```
+HUMAN PROBLEM (feeling, doubt, fear, desire — never the parable's literal subject)
+  -> short, natural conversation
+  -> Jesus identifies the deeper question
+  -> Jesus tells the parable
+  -> player plays the parable
+  -> player returns to Israel
+  -> NPC understands the lesson
+  -> emotional / human response
+```
+
+The NPC's opening lines (`dialogueLines`) must **never** open with the literal
+object of the parable — "I lost my sheep" leading straight into The Lost
+Sheep is exactly the mistake to avoid. Open with the underlying human
+condition instead (Lost Sheep: feeling forgotten/unimportant), and only let
+Jesus's own line pivot into the parable's setup. Keep it very short, natural,
+warm, and easy for a child to follow — not preachy, not theological
+exposition; the parable itself carries the lesson, the intro just sets up the
+question.
+
+Every encounter must also define `returnDialogueLines`/`returnDialogueSpeakers`
+— a short automatic follow-up (no Talk button, it plays the instant the
+player lands back in Israel after finishing that parable live) where the NPC
+reacts with a genuine emotional beat now that they've understood the lesson.
+This is wired through `pendingReturnEncounterId` in `worldStore.ts`, set right
+before `openParable()` and consumed once by `IsraelScreen`'s next mount —
+follow that same plumbing for every future encounter rather than inventing a
+new mechanism per parable.
+
+Reference examples for future parables (subject is never the opener):
+
+- **Good Samaritan**: someone struggling with prejudice, or asking who
+  deserves their love -> loving your neighbour.
+- **Prodigal Son**: someone wrestling with forgiveness or a broken family
+  relationship -> the Father's mercy.
+- **Sower**: someone puzzled by why people respond so differently to the same
+  message -> the different kinds of hearts.
+
 ### Traps already hit
 
 - A PixiJS alpha/sprite mask sampled **outside its own texture bounds reads as
@@ -176,6 +219,22 @@ on.
   the lost sheep's fixed spawn (`LOST_SHEEP_START`) ever move, this path and
   everything anchored to it (landmarks, trail, corridor) recomputes
   automatically — no other file hardcodes world positions along the route.
+- `steerToward` (`engine/chaseAI.ts`) moves at constant speed toward a target
+  and never slows down or arrives — without an arrival-radius check around
+  any target it steers toward, an entity within one frame's step of the
+  target overshoots and corrects back every single tick, flipping its
+  velocity sign (and therefore left/right facing) each frame. Visually this
+  reads as flickering/a duplicated held accessory (see `AmbientNpc.update` in
+  `world/entities.ts`, wandering toward `wanderTarget`). Always stop (or at
+  least skip the steer step) once within `speed * dt` of the target instead
+  of calling `steerToward` unconditionally every frame.
+- `applyFacing` (`world/entities.ts`) uses one-sided hysteresis on purpose —
+  a bigger push is required to flip away from the current facing than to
+  reinforce it — so a noisy near-zero horizontal velocity can never flicker
+  the facing back and forth. If you add a new moving entity, feed it a
+  *normalized* direction/velocity (magnitude ~0..1), not a raw per-frame
+  world-space delta (which scales with that entity's own speed and the
+  frame's `dt`) — the hysteresis threshold assumes normalized input.
 - Playwright smoke-testing this scene: click through Home → "Play" →
   "The Lost Sheep" → the intro dialogue's "Skip" button (clicking the canvas
   itself does not advance dialogue). There's no route/URL to jump straight
