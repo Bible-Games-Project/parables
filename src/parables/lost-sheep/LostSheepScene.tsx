@@ -480,7 +480,7 @@ export function LostSheepScene({ onExit, onRetry, onVictory }: ParableSceneProps
         } else if (state === "escort" && distance(current.shepherd.position, PEN_CENTER) < RETURN_RADIUS) {
           const healthRatio = (current.shepherd.hp / 100 + current.sheep.hp / 100) / 2;
           current.finalStars = computeStars(healthRatio, current.elapsedPlaying, STAR_FAST_SECONDS, STAR_SLOW_SECONDS);
-          current.mission.set("victory");
+          current.mission.set("conclusion");
         }
       }
 
@@ -523,6 +523,10 @@ export function LostSheepScene({ onExit, onRetry, onVictory }: ParableSceneProps
     runtimeRef.current?.mission.set("search");
   };
 
+  const handleConclusionComplete = () => {
+    runtimeRef.current?.mission.set("victory");
+  };
+
   const handleToastDone = useCallback(() => {
     const current = runtimeRef.current;
     setToastLine((activeLine) => {
@@ -557,6 +561,14 @@ export function LostSheepScene({ onExit, onRetry, onVictory }: ParableSceneProps
           seed="lost-sheep-intro"
           lines={["lostSheep.intro.line1", "lostSheep.intro.line2", "lostSheep.intro.line3"]}
           onComplete={handleDialogueComplete}
+        />
+      )}
+
+      {missionState === "conclusion" && (
+        <DialogueOverlay
+          seed="lost-sheep-conclusion"
+          lines={["lostSheep.conclusion.line1", "lostSheep.conclusion.line2"]}
+          onComplete={handleConclusionComplete}
         />
       )}
 

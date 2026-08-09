@@ -1,1 +1,1 @@
-export type LostSheepMissionState = "intro" | "search" | "escort" | "victory" | "gameOver";
+export type LostSheepMissionState = "intro" | "search" | "escort" | "conclusion" | "victory" | "gameOver";
