@@ -239,17 +239,10 @@ export function IsraelScreen() {
   };
 
   const handleReturnDialogueComplete = () => {
-    // The narrative conclusion just played; immediately follow it with the short
-    // offer to hear the parable again, reusing the same dialogue/Back/fade
-    // machinery as a fresh Talk — this is what lets the player replay right away
-    // instead of only being able to on some later visit.
-    if (!returningEncounter) {
-      setPhase("explore");
-      return;
-    }
-    setTalkingMode("replay");
-    setTalkingEncounter(returningEncounter);
-    setPhase("dialogue");
+    // The narrative conclusion just played; end the conversation here and let
+    // Jesus and the NPC return to normal exploration. The replay offer is only
+    // ever reached by the player pressing Talk again on a later visit.
+    setPhase("explore");
   };
 
   const handleBackToHome = () => {
