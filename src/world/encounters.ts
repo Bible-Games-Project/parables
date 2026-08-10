@@ -26,6 +26,16 @@ export interface ParableEncounter {
    */
   returnDialogueLines: LocaleKey[];
   returnDialogueSpeakers: LocaleKey[];
+  /**
+   * A very short exchange offering to play the parable again — shown right
+   * after `returnDialogueLines` finishes on the first live completion, and
+   * from then on every time the player presses Talk on an already-completed
+   * encounter (replacing `dialogueLines`, since the NPC's original problem
+   * was already resolved). Ends the same way `dialogueLines` does: Continue
+   * leads into the parable, Back leaves without entering it.
+   */
+  replayDialogueLines: LocaleKey[];
+  replayDialogueSpeakers: LocaleKey[];
 }
 
 /**
@@ -53,5 +63,7 @@ export const PARABLE_ENCOUNTERS: ParableEncounter[] = [
       "world.encounter.lostSheep.return3",
     ],
     returnDialogueSpeakers: ["world.speaker.shepherd", "world.speaker.jesus", "world.speaker.shepherd"],
+    replayDialogueLines: ["world.encounter.lostSheep.replay1", "world.encounter.lostSheep.replay2"],
+    replayDialogueSpeakers: ["world.speaker.shepherd", "world.speaker.jesus"],
   },
 ];

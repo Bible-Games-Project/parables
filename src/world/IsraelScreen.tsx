@@ -35,6 +35,8 @@ import { useT } from "@/locales/useT";
 import styles from "@/world/IsraelScreen.module.css";
 
 type Phase = "explore" | "dialogue" | "fading" | "returning";
+/** "intro" is an encounter's first-ever conversation (the NPC's human problem); "replay" is the short offer to play an already-completed parable again. Both end the same way: Continue leads into the parable, Back leaves without entering it. */
+type TalkingMode = "intro" | "replay";
 
 const AMBIENT_NPCS: { position: Vector2; variant: VillagerVariant; seed: number; wanderRadius: number }[] = [
   { position: { x: OLIVE_GROVE.x + 20, y: OLIVE_GROVE.y + 30 }, variant: "adultWoman", seed: 11, wanderRadius: 60 },
@@ -85,6 +87,7 @@ export function IsraelScreen() {
   const openParable = useAppStore((state) => state.openParable);
   const totalStars = useProgressStore((state) => state.totalStars());
   const completedCount = useProgressStore((state) => state.completedParableIds.length);
+  const isParableCompleted = useProgressStore((state) => state.isCompleted);
   const jesusPosition = useWorldStore((state) => state.jesusPosition);
   const setJesusPosition = useWorldStore((state) => state.setJesusPosition);
   const setPendingReturnEncounterId = useWorldStore((state) => state.setPendingReturnEncounterId);
@@ -106,6 +109,7 @@ export function IsraelScreen() {
   const [activeEncounter, setActiveEncounter] = useState<ParableEncounter | null>(null);
   /** The encounter Jesus is actually talking to — captured from `activeEncounter` the moment Talk is pressed, so it survives the proximity check clearing `activeEncounter` once movement stops during dialogue/fading. */
   const [talkingEncounter, setTalkingEncounter] = useState<ParableEncounter | null>(null);
+  const [talkingMode, setTalkingMode] = useState<TalkingMode>("intro");
   const [fadeParableId, setFadeParableId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -199,6 +203,10 @@ export function IsraelScreen() {
 
   const handleTalk = () => {
     if (!activeEncounter) return;
+    // Once the parable has been completed, the NPC's original human problem was
+    // already resolved (see the return conversation) — talking again offers a
+    // replay instead of repeating that same opening conversation.
+    setTalkingMode(isParableCompleted(activeEncounter.parableId) ? "replay" : "intro");
     setTalkingEncounter(activeEncounter);
     setPhase("dialogue");
   };
@@ -209,15 +217,33 @@ export function IsraelScreen() {
     setPhase("fading");
   };
 
+  const handleBackFromDialogue = () => {
+    setTalkingEncounter(null);
+    setPhase("explore");
+  };
+
   const handleFadeDone = () => {
     const current = runtimeRef.current;
     if (current) setJesusPosition(current.jesus.position);
-    if (talkingEncounter) setPendingReturnEncounterId(talkingEncounter.id);
+    // Only the very first completion (talkingMode "intro") owes the player the
+    // automatic return conversation + replay offer — repeating "so I matter?" after
+    // every subsequent replay would undercut the moment instead of honoring it.
+    if (talkingEncounter && talkingMode === "intro") setPendingReturnEncounterId(talkingEncounter.id);
     if (fadeParableId) openParable(fadeParableId);
   };
 
   const handleReturnDialogueComplete = () => {
-    setPhase("explore");
+    // The narrative conclusion just played; immediately follow it with the short
+    // offer to hear the parable again, reusing the same dialogue/Back/fade
+    // machinery as a fresh Talk — this is what lets the player replay right away
+    // instead of only being able to on some later visit.
+    if (!returningEncounter) {
+      setPhase("explore");
+      return;
+    }
+    setTalkingMode("replay");
+    setTalkingEncounter(returningEncounter);
+    setPhase("dialogue");
   };
 
   const handleBackToHome = () => {
@@ -267,9 +293,10 @@ export function IsraelScreen() {
 
       {phase === "dialogue" && talkingEncounter && (
         <DialogueOverlay
-          seed={talkingEncounter.id}
-          lines={talkingEncounter.dialogueLines}
-          speakers={talkingEncounter.dialogueSpeakers}
+          seed={`${talkingEncounter.id}-${talkingMode}`}
+          lines={talkingMode === "replay" ? talkingEncounter.replayDialogueLines : talkingEncounter.dialogueLines}
+          speakers={talkingMode === "replay" ? talkingEncounter.replayDialogueSpeakers : talkingEncounter.dialogueSpeakers}
+          onBack={handleBackFromDialogue}
           onComplete={handleDialogueComplete}
         />
       )}

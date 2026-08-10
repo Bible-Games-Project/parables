@@ -57,6 +57,8 @@ export const en = {
   "world.encounter.lostSheep.return1": "So... you're saying I really am important?",
   "world.encounter.lostSheep.return2": "Every one of us is.",
   "world.encounter.lostSheep.return3": "Then I matter. I really matter!",
+  "world.encounter.lostSheep.replay1": "Jesus, could you tell me that story again?",
+  "world.encounter.lostSheep.replay2": "Of course.",
 
   "lostSheep.intro.line1": "The shepherd watches over ninety-nine sheep, safe in their fold.",
   "lostSheep.intro.line2": "But one little sheep has wandered off, alone.",

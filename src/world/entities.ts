@@ -85,6 +85,17 @@ export class Jesus {
 type NpcState = "idle" | "wander";
 
 /**
+ * How close an NPC must get to its wander target before it's considered
+ * "arrived." Deliberately generous (not pixel-perfect): `steerToward` moves
+ * at constant speed and never slows down, so a tiny tolerance just moves the
+ * left/right overshoot-and-correct oscillation to a smaller radius instead
+ * of eliminating it — the NPC would still flicker, just over fewer pixels.
+ * This has to be comfortably larger than a single frame's travel distance
+ * (speed * dt) at any plausible frame rate for the dead zone to actually hold.
+ */
+const NPC_ARRIVAL_TOLERANCE = 4;
+
+/**
  * A villager who just lives in the world — idles and wanders a small home
  * radius, never reacts to Jesus. Also the base for handcrafted encounter
  * NPCs (see encounters.ts), which just use a tighter wander radius so they
@@ -135,18 +146,26 @@ export class AmbientNpc {
   update(dt: number, obstacles: CircleObstacle[] = [], walls: Rect[] = []): void {
     this.stateTimer -= dt;
     if (this.stateTimer <= 0) this.pickNext();
+
+    // Arrival check: once within a generous tolerance of the wander target, stop —
+    // immediately, not just skipping this frame's step — and drop straight into idle
+    // rather than waiting out the rest of the wander timer doing nothing. Without a
+    // real tolerance here, `steerToward`'s constant-speed seek overshoots the target
+    // and corrects back every frame near it, which flips movement direction (and
+    // therefore left/right facing) each tick — the exact left/right/left/right
+    // "stuck" oscillation this exists to prevent.
+    if (this.state === "wander" && distance(this.position, this.wanderTarget) <= NPC_ARRIVAL_TOLERANCE) {
+      this.state = "idle";
+      this.stateTimer = 2.5 + this.rng() * 3.5;
+    }
+
     this.idlePhase += dt;
 
     // Velocity is measured from actual net displacement — computed *after* collision
     // resolution — so an NPC pinned against an obstacle or wall truly reads as stopped
     // (idle animation) instead of playing a walk cycle while visually stuck in place.
     const before = { ...this.position };
-    // `steerToward` moves at constant speed and never slows down, so without an arrival
-    // radius the NPC would fly past its target every frame and immediately steer back,
-    // flipping its direction (and therefore its left/right facing) every single tick —
-    // the exact cause of the flicker/duplicated-accessory bug. Once within one frame's
-    // step of the target we simply stop, giving movement direction a single stable value.
-    if (this.state === "wander" && distance(this.position, this.wanderTarget) > this.speed * dt) {
+    if (this.state === "wander") {
       this.position = steerToward(this.position, this.wanderTarget, this.speed, dt);
     }
 

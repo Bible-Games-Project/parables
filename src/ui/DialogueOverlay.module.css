@@ -30,13 +30,23 @@
   gap: 0.6rem;
 }
 
-/* Skip is the secondary action: smaller and lower-contrast, anchored left. */
+/* Back + Skip are grouped on the left, both secondary actions — reads left to
+   right as Back | Skip | Continue. */
+.secondaryGroup {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+/* Back and Skip are the secondary actions: smaller and lower-contrast. */
+.back,
 .skip {
   opacity: 0.62;
   transform: scale(0.82);
   transform-origin: left center;
 }
 
+.back:hover:not(:disabled),
 .skip:hover:not(:disabled) {
   opacity: 0.85;
 }
