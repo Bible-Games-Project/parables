@@ -54,6 +54,7 @@ const GUARD_WOLF_COUNT = 3;
 const GUARD_WOLF_DISTANCE = 26;
 const DANGER_DELAY = 15;
 const BLOOD_DISCOVERY_RADIUS = 26;
+const TRACK_DISCOVERY_RADIUS = 30;
 const LIGHT_RADIUS_START = 70;
 const LIGHT_RADIUS_MIN = 46;
 const LIGHT_SHRINK_DURATION = 240;
@@ -179,9 +180,12 @@ interface RuntimeRefs {
   terrainObstacles: TerrainObstacle[];
   penObstacles: CircleObstacle[];
   bloodPositions: { x: number; y: number }[];
+  firstFootprintPosition: { x: number; y: number };
   input: KeyboardController;
   camera: Camera;
   night: NightOverlay;
+  /** Smoothed toward the lantern's true (screen-space) position every frame — softens the instant horizontal jump that would otherwise happen the moment the shepherd's facing flips, without adding any perceptible lag to normal walking. Null until the first frame, so the light starts exactly on the lantern instead of sliding in from the origin. */
+  smoothedLanternPosition: { x: number; y: number } | null;
   mission: ReturnType<typeof createMissionMachine<LostSheepMissionState>>;
   nightIntensity: number;
   lightRadius: number;
@@ -192,6 +196,7 @@ interface RuntimeRefs {
   dangerActive: boolean;
   dangerDialogueQueued: boolean;
   firstBloodShown: boolean;
+  firstTrackShown: boolean;
   toastActive: boolean;
   pendingToasts: LocaleKey[];
   /** Seconds spent actively playing (search + escort) — used only to grade the run's stars, never gates or slows anything. */
@@ -295,9 +300,11 @@ export function LostSheepScene({ onExit, onRetry, onVictory }: ParableSceneProps
       terrainObstacles,
       penObstacles: PEN_DETAIL_OBSTACLES,
       bloodPositions: trail.bloodPositions,
+      firstFootprintPosition: trail.firstFootprintPosition,
       input,
       camera,
       night,
+      smoothedLanternPosition: null,
       mission,
       nightIntensity: 0,
       lightRadius: LIGHT_RADIUS_START,
@@ -308,6 +315,7 @@ export function LostSheepScene({ onExit, onRetry, onVictory }: ParableSceneProps
       dangerActive: false,
       dangerDialogueQueued: false,
       firstBloodShown: false,
+      firstTrackShown: false,
       toastActive: false,
       pendingToasts: [],
       elapsedPlaying: 0,
@@ -356,7 +364,22 @@ export function LostSheepScene({ onExit, onRetry, onVictory }: ParableSceneProps
       const fadeRate = 1 - Math.exp(-dt * 0.35);
       current.nightIntensity += (targetIntensity - current.nightIntensity) * fadeRate;
       current.night.setIntensity(current.nightIntensity);
-      current.night.setFollowPosition(current.shepherd.getLanternScreenPosition());
+
+      // The lantern's raw screen position jumps instantly whenever the shepherd's
+      // facing flips (it's mirrored to the other side of his body along with the
+      // rest of his sprite). Smoothing the position the light actually follows —
+      // rather than the lantern's true position directly — turns that snap into a
+      // brief, natural-feeling slide without ever touching the separate, gradual
+      // light-radius shrink above.
+      const rawLanternPosition = current.shepherd.getLanternScreenPosition();
+      if (!current.smoothedLanternPosition) {
+        current.smoothedLanternPosition = { x: rawLanternPosition.x, y: rawLanternPosition.y };
+      } else {
+        const followRate = 1 - Math.exp(-dt * 24);
+        current.smoothedLanternPosition.x += (rawLanternPosition.x - current.smoothedLanternPosition.x) * followRate;
+        current.smoothedLanternPosition.y += (rawLanternPosition.y - current.smoothedLanternPosition.y) * followRate;
+      }
+      current.night.setFollowPosition(current.smoothedLanternPosition);
 
       if (playing) {
         current.elapsedPlaying += dt;
@@ -378,6 +401,15 @@ export function LostSheepScene({ onExit, onRetry, onVictory }: ParableSceneProps
           if (current.dangerTimer >= DANGER_DELAY) {
             current.dangerDialogueQueued = true;
             current.pendingToasts.push("lostSheep.danger.hurry");
+          }
+        }
+
+        // The very first footprint, just outside the pen, gets a one-time "I see tracks!"
+        // reaction — the player's cue that the search is on and the trail is worth following.
+        if (!current.firstTrackShown && state === "search") {
+          if (distance(current.shepherd.position, current.firstFootprintPosition) < TRACK_DISCOVERY_RADIUS) {
+            current.firstTrackShown = true;
+            current.pendingToasts.push("lostSheep.search.firstTrack");
           }
         }
 

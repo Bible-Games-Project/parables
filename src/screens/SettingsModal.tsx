@@ -14,6 +14,8 @@ interface SettingsModalProps {
   onClose: () => void;
 }
 
+type SettingsPanel = "language" | "audio" | "debug" | null;
+
 export function SettingsModal({ onClose }: SettingsModalProps) {
   const t = useT();
   const locale = useSettingsStore((state) => state.locale);
@@ -31,9 +33,11 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
   const resetProgress = useProgressStore((state) => state.resetProgress);
   const resetWorld = useWorldStore((state) => state.resetWorld);
 
-  const [languageExpanded, setLanguageExpanded] = useState(false);
-  const [audioExpanded, setAudioExpanded] = useState(false);
+  // Only one panel open at a time — pressing a button that's already open closes it.
+  const [openPanel, setOpenPanel] = useState<SettingsPanel>(null);
   const [confirmingReset, setConfirmingReset] = useState(false);
+
+  const togglePanel = (panel: SettingsPanel) => setOpenPanel((current) => (current === panel ? null : panel));
 
   const handleConfirmReset = () => {
     // Only gameplay/progression is wiped — resetProgress/resetWorld never touch
@@ -44,69 +48,69 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
   };
 
   return (
-    <Modal title={t("settings.title")} onClose={onClose} seed="settings-modal">
-      <div className={styles.section}>
-        <button
-          type="button"
-          className={styles.sectionHeader}
-          onClick={() => setLanguageExpanded((value) => !value)}
-          aria-expanded={languageExpanded}
+    <Modal title={t("settings.title")} onClose={onClose} seed="settings-modal" closeVariant="back">
+      <div className={styles.mainButtons}>
+        <PixelButton
+          className={styles.mainButton}
+          size="large"
+          onClick={() => togglePanel("language")}
+          aria-expanded={openPanel === "language"}
         >
-          <span className={styles.sectionTitle}>{t("language.title")}</span>
-          <span className={styles.sectionValue}>
-            {LOCALE_NAMES[locale]}
-            <span className={styles.chevron} data-open={languageExpanded}>
-              ▾
-            </span>
-          </span>
-        </button>
-        {languageExpanded && (
-          <div className={styles.languageGrid}>
-            {LOCALE_CODES.map((code) => (
-              <PixelButton
-                key={code}
-                className={styles.languageOption}
-                disabled={code === locale}
-                onClick={() => {
-                  setLocale(code);
-                  setLanguageExpanded(false);
-                }}
-              >
-                {LOCALE_NAMES[code]}
-              </PixelButton>
-            ))}
+          {`${t("language.title")} — ${LOCALE_NAMES[locale]}`}
+        </PixelButton>
+        {openPanel === "language" && (
+          <div className={styles.panel}>
+            <div className={styles.languageGrid}>
+              {LOCALE_CODES.map((code) => (
+                <PixelButton
+                  key={code}
+                  className={styles.languageOption}
+                  disabled={code === locale}
+                  onClick={() => {
+                    setLocale(code);
+                    setOpenPanel(null);
+                  }}
+                >
+                  {LOCALE_NAMES[code]}
+                </PixelButton>
+              ))}
+            </div>
           </div>
         )}
-      </div>
 
-      <div className={styles.section}>
-        <button
-          type="button"
-          className={styles.sectionHeader}
-          onClick={() => setAudioExpanded((value) => !value)}
-          aria-expanded={audioExpanded}
+        <PixelButton
+          className={styles.mainButton}
+          size="large"
+          onClick={() => togglePanel("audio")}
+          aria-expanded={openPanel === "audio"}
         >
-          <span className={styles.sectionTitle}>{t("settings.audio")}</span>
-          <span className={styles.chevron} data-open={audioExpanded}>
-            ▾
-          </span>
-        </button>
-        {audioExpanded && (
-          <div className={styles.audioPanel}>
+          {t("settings.audio")}
+        </PixelButton>
+        {openPanel === "audio" && (
+          <div className={styles.panel}>
             <PixelToggle label={t("settings.music")} on={musicEnabled} onToggle={toggleMusic} />
             <PixelSlider label={t("settings.volume")} value={musicVolume} onChange={setMusicVolume} disabled={!musicEnabled} />
             <PixelToggle label={t("settings.sounds")} on={soundsEnabled} onToggle={toggleSounds} />
             <PixelSlider label={t("settings.volume")} value={soundsVolume} onChange={setSoundsVolume} disabled={!soundsEnabled} />
           </div>
         )}
-      </div>
 
-      <div className={[styles.section, styles.debugSection].join(" ")}>
-        <div className={styles.sectionTitle}>{t("settings.debug.title")}</div>
-        <PixelToggle label={t("settings.debug.mode")} on={debugMode} onToggle={toggleDebugMode} />
-        <PixelButton className={styles.resetButton} onClick={() => setConfirmingReset(true)}>
-          {t("settings.debug.reset")}
+        <PixelButton
+          className={styles.mainButton}
+          size="large"
+          onClick={() => togglePanel("debug")}
+          aria-expanded={openPanel === "debug"}
+        >
+          {t("settings.debug.title")}
         </PixelButton>
+        {openPanel === "debug" && (
+          <div className={styles.panel}>
+            <PixelToggle label={t("settings.debug.mode")} on={debugMode} onToggle={toggleDebugMode} />
+            <PixelButton className={styles.resetButton} onClick={() => setConfirmingReset(true)}>
+              {t("settings.debug.reset")}
+            </PixelButton>
+          </div>
+        )}
       </div>
 
       {confirmingReset && (

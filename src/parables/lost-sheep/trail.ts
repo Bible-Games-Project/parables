@@ -9,6 +9,8 @@ const BLOOD_MID = 0x9c2a1f;
 export interface TrailResult {
   /** World positions of every blood drop drawn, for the one-time "first blood discovered" narrative beat. */
   bloodPositions: { x: number; y: number }[];
+  /** Where the very first footprint is drawn (just outside the pen), for the one-time "found the tracks" narrative beat at the start of the search. */
+  firstFootprintPosition: { x: number; y: number };
 }
 
 /**
@@ -24,6 +26,7 @@ export function buildJourneyTrail(world: Container, path: JourneyPoint[]): Trail
   const footprints = new Graphics();
   const blood = new Graphics();
   const bloodPositions: { x: number; y: number }[] = [];
+  let firstFootprintPosition: { x: number; y: number } | null = null;
   const rng = createRng(7331);
   let side = 1;
   for (const p of path) {
@@ -32,6 +35,7 @@ export function buildJourneyTrail(world: Container, path: JourneyPoint[]): Trail
     const fx = p.x + p.nx * 4.5 * side;
     const fy = p.y + p.ny * 4.5 * side;
     drawHoofprint(footprints, fx, fy, p.nx, p.ny);
+    if (!firstFootprintPosition) firstFootprintPosition = { x: fx, y: fy };
 
     // Blood is silent for the first stretch (a peaceful start), then grows
     // steadily more frequent the closer the trail gets to the sheep.
@@ -46,7 +50,7 @@ export function buildJourneyTrail(world: Container, path: JourneyPoint[]): Trail
   world.addChild(footprints);
   world.addChild(blood);
 
-  return { bloodPositions };
+  return { bloodPositions, firstFootprintPosition: firstFootprintPosition ?? { x: path[0]?.x ?? 0, y: path[0]?.y ?? 0 } };
 }
 
 function drawHoofprint(g: Graphics, x: number, y: number, nx: number, ny: number): void {
