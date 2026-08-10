@@ -58,3 +58,25 @@
 .languageOption {
   width: 100%;
 }
+
+.audioPanel {
+  padding-top: 0.2rem;
+}
+
+/* Visually separated from normal player settings, per the design spec — a subtle
+   divider above it, nothing louder (still the same warm wood/pastel language). */
+.debugSection {
+  padding-top: 1.1rem;
+  border-top: 1px dashed rgba(245, 230, 200, 0.25);
+}
+
+.resetButton {
+  width: 100%;
+  margin-top: 0.6rem;
+}
+
+.confirmActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.6rem;
+}

@@ -4,22 +4,35 @@ import { DEFAULT_LOCALE, type LocaleCode } from "@/locales/i18n";
 
 interface SettingsState {
   locale: LocaleCode;
-  audioEnabled: boolean;
-  volume: number;
+  musicEnabled: boolean;
+  musicVolume: number;
+  soundsEnabled: boolean;
+  soundsVolume: number;
+  /** Developer-only override: unlocks every parable and every star-gated area in Israel for testing, without touching real progression. Never surfaced outside Settings. */
+  debugMode: boolean;
   setLocale: (locale: LocaleCode) => void;
-  setVolume: (volume: number) => void;
-  toggleAudio: () => void;
+  toggleMusic: () => void;
+  setMusicVolume: (volume: number) => void;
+  toggleSounds: () => void;
+  setSoundsVolume: (volume: number) => void;
+  toggleDebugMode: () => void;
 }
 
 export const useSettingsStore = create<SettingsState>()(
   persist(
     (set) => ({
       locale: DEFAULT_LOCALE,
-      audioEnabled: true,
-      volume: 0.7,
+      musicEnabled: true,
+      musicVolume: 0.7,
+      soundsEnabled: true,
+      soundsVolume: 0.7,
+      debugMode: false,
       setLocale: (locale) => set({ locale }),
-      setVolume: (volume) => set({ volume: clamp01(volume) }),
-      toggleAudio: () => set((state) => ({ audioEnabled: !state.audioEnabled })),
+      toggleMusic: () => set((state) => ({ musicEnabled: !state.musicEnabled })),
+      setMusicVolume: (volume) => set({ musicVolume: clamp01(volume) }),
+      toggleSounds: () => set((state) => ({ soundsEnabled: !state.soundsEnabled })),
+      setSoundsVolume: (volume) => set({ soundsVolume: clamp01(volume) }),
+      toggleDebugMode: () => set((state) => ({ debugMode: !state.debugMode })),
     }),
     { name: "bible-parables-settings" },
   ),

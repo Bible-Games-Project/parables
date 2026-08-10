@@ -22,6 +22,8 @@ interface ProgressState {
   isUnlocked: (parableId: string) => boolean;
   isCompleted: (parableId: string) => boolean;
   totalStars: () => number;
+  /** Debug-only "Reset Game Data": wipes every earned result back to a fresh save. Never touches `settingsStore` — language/audio/debug-mode itself are not progression. */
+  resetProgress: () => void;
 }
 
 export const useProgressStore = create<ProgressState>()(
@@ -54,6 +56,13 @@ export const useProgressStore = create<ProgressState>()(
       isUnlocked: (parableId) => get().unlockedParableIds.includes(parableId),
       isCompleted: (parableId) => get().completedParableIds.includes(parableId),
       totalStars: () => Object.values(get().stars).reduce((sum, value) => sum + value, 0),
+      resetProgress: () =>
+        set({
+          unlockedParableIds: ["lost-sheep"],
+          completedParableIds: [],
+          stars: {},
+          bestTimeSeconds: {},
+        }),
     }),
     { name: "bible-parables-progress" },
   ),

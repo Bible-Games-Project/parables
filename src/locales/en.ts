@@ -9,9 +9,17 @@ export const en = {
   "settings.title": "Settings",
   "settings.audio": "Audio",
   "settings.music": "Music",
+  "settings.sounds": "Sounds",
   "settings.volume": "Volume",
+  "settings.debug.title": "Debug",
+  "settings.debug.mode": "Debug Mode",
+  "settings.debug.reset": "Reset Game Data",
+  "settings.debug.resetConfirmTitle": "Reset all game progress?",
+  "settings.debug.resetConfirm": "Reset",
 
   "language.title": "Language",
+
+  "common.cancel": "Cancel",
 
   "moreGames.title": "More Games",
   "moreGames.comingSoon": "Coming soon",

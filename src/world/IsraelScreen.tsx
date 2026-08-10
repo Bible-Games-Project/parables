@@ -24,6 +24,7 @@ import {
 import type { VillagerVariant } from "@/world/sprites";
 import { useAppStore } from "@/store/appStore";
 import { useProgressStore } from "@/store/progressStore";
+import { useSettingsStore } from "@/store/settingsStore";
 import { useWorldStore } from "@/store/worldStore";
 import { getParable, PARABLES } from "@/parables/registry";
 import { DialogueOverlay } from "@/ui/DialogueOverlay";
@@ -88,6 +89,7 @@ export function IsraelScreen() {
   const totalStars = useProgressStore((state) => state.totalStars());
   const completedCount = useProgressStore((state) => state.completedParableIds.length);
   const isParableCompleted = useProgressStore((state) => state.isCompleted);
+  const debugMode = useSettingsStore((state) => state.debugMode);
   const jesusPosition = useWorldStore((state) => state.jesusPosition);
   const setJesusPosition = useWorldStore((state) => state.setJesusPosition);
   const setPendingReturnEncounterId = useWorldStore((state) => state.setPendingReturnEncounterId);
@@ -126,8 +128,12 @@ export function IsraelScreen() {
     const world = new Container();
     app.stage.addChild(world);
 
-    const { obstacles, walls: terrainWalls, dynamicLayer } = buildIsraelTerrain(world, totalStars);
-    const walls = [...terrainWalls, ...activeGateWalls(totalStars)];
+    // Debug Mode is purely an access override for testing — it never changes what's
+    // actually earned (the HUD above still reads the real `totalStars`), it just makes
+    // every star-gated area behave as if the player already had enough stars for it.
+    const gateStars = debugMode ? Infinity : totalStars;
+    const { obstacles, walls: terrainWalls, dynamicLayer } = buildIsraelTerrain(world, gateStars);
+    const walls = [...terrainWalls, ...activeGateWalls(gateStars)];
     world.addChild(dynamicLayer);
 
     const jesus = new Jesus(jesusPosition ?? JESUS_START);
