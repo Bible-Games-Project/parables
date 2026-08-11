@@ -3,6 +3,7 @@ import { hexToNumber } from "@/pixel-art/color";
 import { createRng } from "@/pixel-art/prng";
 import { palette } from "@/pixel-art/palette";
 import { buildBush, buildRock, buildTree } from "@/pixel-art/foliage";
+import type { Rect } from "@/engine/collision";
 import {
   BRIDGE,
   CORRIDOR_PATHS,
@@ -21,6 +22,25 @@ export interface TerrainObstacle {
   x: number;
   y: number;
   radius: number;
+}
+
+/** Wider than the trunk (~4.5-unit half-width), short enough to stay clear of the
+ * canopy above — a physical footprint at ground level, not a hitbox for the whole
+ * tree. Used alongside (not instead of) the tree's existing circular
+ * `TerrainObstacle`: the circle keeps blocking wolves exactly as before, this rect
+ * additionally stops the shepherd from ever crossing straight through a trunk in
+ * a single frame while still letting them walk around it from any side. */
+const TREE_COLLIDER_HALF_WIDTH = 6;
+const TREE_COLLIDER_TOP = 7;
+const TREE_COLLIDER_BOTTOM = 1;
+
+function treeFootprint(x: number, baseY: number): Rect {
+  return {
+    x: x - TREE_COLLIDER_HALF_WIDTH,
+    y: baseY - TREE_COLLIDER_TOP,
+    width: TREE_COLLIDER_HALF_WIDTH * 2,
+    height: TREE_COLLIDER_TOP + TREE_COLLIDER_BOTTOM,
+  };
 }
 
 const FLOWER_VARIANTS = [
@@ -156,6 +176,8 @@ function buildRiver(world: Container): void {
 
 export interface TerrainResult {
   obstacles: TerrainObstacle[];
+  /** Rect footprints (currently just tree bases) for `resolveCircleVsRect` — the shepherd should collide with these; keeps the wider, height-limited collision shape separate from the plain circular `obstacles` that wolves/sheep still use unchanged. */
+  walls: Rect[];
   /** A Y-sortable Container (already added to `world`) holding tree canopies and large rocks/hills. The caller should add the shepherd/sheep/wolves/flock into it too, and keep each entity's zIndex equal to its y position, so tall scenery correctly layers in front of or behind moving characters. */
   dynamicLayer: Container;
 }
@@ -252,6 +274,7 @@ export function buildTerrain(world: Container): TerrainResult {
   // its exact base y — never a shared band — so sorting is always correct,
   // not just close. Large rocks and hills sort individually the same way.
   const obstacles: TerrainObstacle[] = [];
+  const walls: Rect[] = [];
   const dynamicLayer = new Container();
   dynamicLayer.sortableChildren = true;
   const trunkBatch = new Graphics();
@@ -271,6 +294,7 @@ export function buildTerrain(world: Container): TerrainResult {
       // into the canopy — so the foliage above never blocks movement.
       addSortedTree(x, y, rng, trunkBatch, dynamicLayer);
       obstacles.push({ x, y, radius: 3.5 });
+      walls.push(treeFootprint(x, y));
     } else if (roll < 0.75) {
       buildBush(x, y, rng, bushBatch);
       obstacles.push({ x, y, radius: 3.5 });
@@ -312,6 +336,7 @@ export function buildTerrain(world: Container): TerrainResult {
         if (flankRng() < treeChance) {
           addSortedTree(x, y, flankRng, trunkBatch, dynamicLayer);
           obstacles.push({ x, y, radius: 3.5 });
+          walls.push(treeFootprint(x, y));
         } else {
           buildBush(x, y, flankRng, bushBatch);
           obstacles.push({ x, y, radius: 3.5 });
@@ -382,5 +407,5 @@ export function buildTerrain(world: Container): TerrainResult {
   // player as before, while still letting the player sort correctly against
   // tree canopies, rocks and hills within the layer itself.
 
-  return { obstacles, dynamicLayer };
+  return { obstacles, walls, dynamicLayer };
 }

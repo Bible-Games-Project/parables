@@ -51,7 +51,7 @@ export class Shepherd {
     this.sprite.container.position.set(start.x, start.y);
   }
 
-  update(dt: number, direction: Vector2, circleObstacles: CircleObstacle[]): void {
+  update(dt: number, direction: Vector2, circleObstacles: CircleObstacle[], treeWalls: Rect[] = []): void {
     const moving = direction.x !== 0 || direction.y !== 0;
     if (moving) {
       this.position.x += direction.x * this.speed * dt;
@@ -61,6 +61,9 @@ export class Shepherd {
         this.position = resolveCircleVsRect(this.position, this.radius, wall);
       }
       for (const wall of RIVER_WALLS) {
+        this.position = resolveCircleVsRect(this.position, this.radius, wall);
+      }
+      for (const wall of treeWalls) {
         this.position = resolveCircleVsRect(this.position, this.radius, wall);
       }
       for (const obstacle of circleObstacles) {

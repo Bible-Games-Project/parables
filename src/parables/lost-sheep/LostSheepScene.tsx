@@ -6,7 +6,7 @@ import { PixiStage } from "@/engine/PixiStage";
 import { KeyboardController } from "@/engine/input";
 import { Camera } from "@/engine/camera";
 import { createNightOverlay, type NightOverlay } from "@/engine/nightOverlay";
-import { circleOverlapsRect, circlesOverlap, distance, resolveCircleVsRect, type CircleObstacle } from "@/engine/collision";
+import { circleOverlapsRect, circlesOverlap, distance, resolveCircleVsRect, type CircleObstacle, type Rect } from "@/engine/collision";
 import { pickNearestTarget } from "@/engine/chaseAI";
 import { createMissionMachine } from "@/engine/missionMachine";
 import { Shepherd, LostSheep, Wolf, LOST_SHEEP_START_HP } from "@/parables/lost-sheep/entities";
@@ -178,6 +178,7 @@ interface RuntimeRefs {
   sentinelWolves: Wolf[];
   flock: Flock;
   terrainObstacles: TerrainObstacle[];
+  treeWalls: Rect[];
   penObstacles: CircleObstacle[];
   bloodPositions: { x: number; y: number }[];
   firstFootprintPosition: { x: number; y: number };
@@ -218,7 +219,7 @@ export function LostSheepScene({ onExit, onRetry, onVictory }: ParableSceneProps
   const onReady = useCallback((app: Application) => {
     const world = new Container();
     app.stage.addChild(world);
-    const { obstacles: terrainObstacles, dynamicLayer } = buildTerrain(world);
+    const { obstacles: terrainObstacles, walls: treeWalls, dynamicLayer } = buildTerrain(world);
 
     const trail = buildJourneyTrail(world, JOURNEY_PATH);
 
@@ -298,6 +299,7 @@ export function LostSheepScene({ onExit, onRetry, onVictory }: ParableSceneProps
       sentinelWolves,
       flock,
       terrainObstacles,
+      treeWalls,
       penObstacles: PEN_DETAIL_OBSTACLES,
       bloodPositions: trail.bloodPositions,
       firstFootprintPosition: trail.firstFootprintPosition,
@@ -350,7 +352,7 @@ export function LostSheepScene({ onExit, onRetry, onVictory }: ParableSceneProps
         .concat(current.flock.asObstacles())
         .concat([{ x: current.sheep.position.x, y: current.sheep.position.y, radius: current.sheep.radius }])
         .concat(current.wolves.map((wolf) => ({ x: wolf.position.x, y: wolf.position.y, radius: wolf.radius })));
-      current.shepherd.update(dt, direction, obstacles);
+      current.shepherd.update(dt, direction, obstacles, current.treeWalls);
       current.flock.update(dt);
 
       if (state !== "intro") {

@@ -26,6 +26,25 @@ export interface TerrainObstacle {
   radius: number;
 }
 
+/** Wider than the trunk (~4.5-unit half-width), short enough to stay clear of the
+ * canopy above — this is a physical footprint at ground level, not a hitbox for
+ * the whole tree. Used alongside (not instead of) the tree's existing circular
+ * `TerrainObstacle`: the circle keeps blocking ambient NPCs exactly as before,
+ * this rect additionally stops the player from ever crossing straight through a
+ * trunk in a single frame while still letting them walk around it from any side. */
+const TREE_COLLIDER_HALF_WIDTH = 6;
+const TREE_COLLIDER_TOP = 7;
+const TREE_COLLIDER_BOTTOM = 1;
+
+function treeFootprint(x: number, baseY: number): Rect {
+  return {
+    x: x - TREE_COLLIDER_HALF_WIDTH,
+    y: baseY - TREE_COLLIDER_TOP,
+    width: TREE_COLLIDER_HALF_WIDTH * 2,
+    height: TREE_COLLIDER_TOP + TREE_COLLIDER_BOTTOM,
+  };
+}
+
 export interface TerrainResult {
   obstacles: TerrainObstacle[];
   walls: Rect[];
@@ -379,6 +398,7 @@ export function buildIsraelTerrain(world: Container, totalStars: number): Terrai
     canopy.zIndex = y;
     dynamicLayer.addChild(canopy);
     obstacles.push({ x, y, radius: 3.5 });
+    walls.push(treeFootprint(x, y));
   }
 
   // --- Olive grove ---

@@ -27,31 +27,47 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 0.6rem;
+  gap: clamp(0.3rem, 2vw, 0.6rem);
+  flex-wrap: nowrap;
 }
 
 /* Back + Skip are grouped on the left, both secondary actions — reads left to
-   right as Back | Skip | Continue. */
+   right as Back | Skip | Continue. min-width: 0 lets the group shrink below its
+   content's natural size instead of forcing Continue out of the panel. */
 .secondaryGroup {
   display: flex;
   align-items: center;
-  gap: 0.3rem;
+  gap: clamp(0.2rem, 1.2vw, 0.3rem);
+  min-width: 0;
+  flex-shrink: 1;
 }
 
-/* Back and Skip are the secondary actions: smaller and lower-contrast. */
-.back,
-.skip {
+/* Back and Skip are the secondary actions: smaller and lower-contrast. Sized
+   with real padding/font-size (not transform: scale, which keeps its original
+   layout footprint) so they actually shrink on narrow screens and leave room
+   for Continue. */
+.actions .back,
+.actions .skip {
   opacity: 0.62;
-  transform: scale(0.82);
-  transform-origin: left center;
+  flex-shrink: 1;
+  min-width: 0;
+  padding: 0.65rem clamp(0.6rem, 3.2vw, 1.1rem);
+  font-size: clamp(0.6rem, 2.2vw, 0.75rem);
+  min-height: 2.6rem;
 }
 
-.back:hover:not(:disabled),
-.skip:hover:not(:disabled) {
+.actions .back:hover:not(:disabled),
+.actions .skip:hover:not(:disabled) {
   opacity: 0.85;
 }
 
-/* Continue is the primary action: larger and brighter, anchored right. */
-.continue {
+/* Continue is the primary action: larger and brighter, anchored right — but
+   still allowed to shrink (via clamp + min-width: 0) so it never pushes past
+   the dialogue panel's edge on narrow viewports. */
+.actions .continue {
+  flex-shrink: 1;
+  min-width: 0;
+  font-size: clamp(0.72rem, 3vw, 1rem);
+  padding: 0.95rem clamp(0.9rem, 4.5vw, 2rem);
   filter: drop-shadow(0 0 5px rgba(232, 178, 61, 0.4));
 }

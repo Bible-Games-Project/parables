@@ -43,7 +43,7 @@ export function DialogueOverlay({ lines, speakers, onComplete, onBack, seed = "d
               {t("common.skip")}
             </PixelButton>
           </div>
-          <PixelButton className={styles.continue} size="large" onClick={advance}>
+          <PixelButton className={styles.continue} onClick={advance}>
             {t("common.continue")}
           </PixelButton>
         </div>
