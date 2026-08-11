@@ -58,6 +58,8 @@ const TRACK_DISCOVERY_RADIUS = 30;
 const LIGHT_RADIUS_START = 70;
 const LIGHT_RADIUS_MIN = 46;
 const LIGHT_SHRINK_DURATION = 240;
+/** How long the light's center takes to slide from one side of the shepherd to the other after a facing flip — separate from, and never touching, the gradual radius shrink above. */
+const LANTERN_TWEEN_DURATION = 0.4;
 /** Star pacing: a rescue finished within this many seconds of active play earns full marks on speed; at or beyond the slow threshold, speed contributes nothing. */
 const STAR_FAST_SECONDS = 70;
 const STAR_SLOW_SECONDS = 220;
@@ -185,8 +187,12 @@ interface RuntimeRefs {
   input: KeyboardController;
   camera: Camera;
   night: NightOverlay;
-  /** Smoothed toward the lantern's true (screen-space) position every frame — softens the instant horizontal jump that would otherwise happen the moment the shepherd's facing flips, without adding any perceptible lag to normal walking. Null until the first frame, so the light starts exactly on the lantern instead of sliding in from the origin. */
+  /** The light's actual displayed (screen-space) center. Tracks the lantern's true position directly except while `lanternTween` is active, when it's the eased result of that tween — this is what `night.setFollowPosition` is always given. Null until the first frame, so the light starts exactly on the lantern instead of sliding in from the origin. */
   smoothedLanternPosition: { x: number; y: number } | null;
+  /** ±1, the shepherd's facing the last time it was checked — comparing against this each frame is how a side-switch (and therefore a new lantern tween) is detected. Null until the first frame. */
+  lanternFacingSign: number | null;
+  /** Set the instant the lantern switches sides; cleared once the tween completes. `from` is a snapshot of wherever the light was AT THAT MOMENT (which, if a previous tween was still in flight, is that tween's current eased position — this is what makes rapid direction changes restart cleanly from the light's current spot instead of jumping back to an old target). `elapsed` counts up to `LANTERN_TWEEN_DURATION`. */
+  lanternTween: { from: { x: number; y: number }; elapsed: number } | null;
   mission: ReturnType<typeof createMissionMachine<LostSheepMissionState>>;
   nightIntensity: number;
   lightRadius: number;
@@ -307,6 +313,8 @@ export function LostSheepScene({ onExit, onRetry, onVictory }: ParableSceneProps
       camera,
       night,
       smoothedLanternPosition: null,
+      lanternFacingSign: null,
+      lanternTween: null,
       mission,
       nightIntensity: 0,
       lightRadius: LIGHT_RADIUS_START,
@@ -369,17 +377,36 @@ export function LostSheepScene({ onExit, onRetry, onVictory }: ParableSceneProps
 
       // The lantern's raw screen position jumps instantly whenever the shepherd's
       // facing flips (it's mirrored to the other side of his body along with the
-      // rest of his sprite). Smoothing the position the light actually follows —
-      // rather than the lantern's true position directly — turns that snap into a
-      // brief, natural-feeling slide without ever touching the separate, gradual
-      // light-radius shrink above.
+      // rest of his sprite). Rather than let the light snap there, a facing change
+      // starts a fixed 0.4s eased tween of the light's displayed center from
+      // wherever it currently is to the lantern's new position — never touching
+      // the separate, gradual light-radius shrink above.
       const rawLanternPosition = current.shepherd.getLanternScreenPosition();
+      const facingSign = current.shepherd.sprite.body.scale.x >= 0 ? 1 : -1;
       if (!current.smoothedLanternPosition) {
         current.smoothedLanternPosition = { x: rawLanternPosition.x, y: rawLanternPosition.y };
+        current.lanternFacingSign = facingSign;
       } else {
-        const followRate = 1 - Math.exp(-dt * 24);
-        current.smoothedLanternPosition.x += (rawLanternPosition.x - current.smoothedLanternPosition.x) * followRate;
-        current.smoothedLanternPosition.y += (rawLanternPosition.y - current.smoothedLanternPosition.y) * followRate;
+        if (current.lanternFacingSign !== null && facingSign !== current.lanternFacingSign) {
+          // A new flip mid-tween restarts from wherever the light actually is right
+          // now (that tween's current eased position), never from the old target —
+          // this is what keeps rapid direction changes from ever jumping or snapping.
+          current.lanternTween = { from: { ...current.smoothedLanternPosition }, elapsed: 0 };
+        }
+        current.lanternFacingSign = facingSign;
+
+        if (current.lanternTween) {
+          current.lanternTween.elapsed += dt;
+          const t = Math.min(1, current.lanternTween.elapsed / LANTERN_TWEEN_DURATION);
+          const eased = 1 - (1 - t) ** 3; // ease-out cubic: quick start, gentle settle
+          const { from } = current.lanternTween;
+          current.smoothedLanternPosition.x = from.x + (rawLanternPosition.x - from.x) * eased;
+          current.smoothedLanternPosition.y = from.y + (rawLanternPosition.y - from.y) * eased;
+          if (t >= 1) current.lanternTween = null;
+        } else {
+          current.smoothedLanternPosition.x = rawLanternPosition.x;
+          current.smoothedLanternPosition.y = rawLanternPosition.y;
+        }
       }
       current.night.setFollowPosition(current.smoothedLanternPosition);
 
