@@ -7,6 +7,18 @@
   z-index: 20;
 }
 
+.body {
+  display: flex;
+  align-items: flex-start;
+  gap: clamp(0.6rem, 3vw, 1rem);
+  margin-bottom: 1rem;
+}
+
+.textColumn {
+  flex: 1;
+  min-width: 0;
+}
+
 .speaker {
   font-size: 0.7rem;
   color: #e8b23d;
@@ -20,7 +32,6 @@
   line-height: 1.9;
   color: #f5e6c8;
   min-height: 3.6rem;
-  margin-bottom: 1rem;
 }
 
 .actions {

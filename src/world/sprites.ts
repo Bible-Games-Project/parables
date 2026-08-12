@@ -277,17 +277,20 @@ function buildHalo(): Graphics {
   return g;
 }
 
+/** Jesus's colors — warm off-white robe, muted brick-red mantle. Exported so the dialogue-box portrait (`src/pixel-art/portraits.ts`) can render a matching face without duplicating this palette choice. */
+export const JESUS_COLORS: HumanoidColors = {
+  robeShadow: palette.jesusRobe.shadow,
+  robeBase: palette.jesusRobe.base,
+  robeHighlight: palette.jesusRobe.highlight,
+  mantleShadow: palette.jesusMantle.shadow,
+  mantleBase: palette.jesusMantle.base,
+  mantleHighlight: palette.jesusMantle.highlight,
+  clasp: "#5f8f8a",
+};
+
 /** Jesus — warm off-white robe, muted brick-red mantle, a soft halo. The player's character in Israel. */
 export function createJesusSprite(): HumanoidVisual {
-  const visual = buildHumanoid({
-    robeShadow: palette.jesusRobe.shadow,
-    robeBase: palette.jesusRobe.base,
-    robeHighlight: palette.jesusRobe.highlight,
-    mantleShadow: palette.jesusMantle.shadow,
-    mantleBase: palette.jesusMantle.base,
-    mantleHighlight: palette.jesusMantle.highlight,
-    clasp: "#5f8f8a",
-  });
+  const visual = buildHumanoid(JESUS_COLORS);
   const halo = buildHalo();
   visual.body.addChildAt(halo, visual.body.getChildIndex(visual.head));
   return visual;
@@ -323,7 +326,7 @@ const NEUTRAL_MANTLE = {
  * as clones in different shirts. `shepherd` is reserved for the Lost Sheep
  * encounter's own character; the rest are the ambient cast.
  */
-const VILLAGER_ARCHETYPES: Record<VillagerVariant, ArchetypeDefinition> = {
+export const VILLAGER_ARCHETYPES: Record<VillagerVariant, ArchetypeDefinition> = {
   shepherd: {
     colors: {
       robeShadow: palette.shepherdRobe.shadow,

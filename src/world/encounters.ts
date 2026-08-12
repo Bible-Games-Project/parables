@@ -1,5 +1,6 @@
 import type { Vector2 } from "@/engine/input";
 import type { LocaleKey } from "@/locales/en";
+import type { Expression } from "@/pixel-art/portraits";
 import { SHEPHERD_CAMP } from "@/world/map";
 
 /**
@@ -17,6 +18,8 @@ export interface ParableEncounter {
   dialogueLines: LocaleKey[];
   /** Speaker name shown above each line, same index as `dialogueLines`. */
   dialogueSpeakers: LocaleKey[];
+  /** Portrait facial expression per line, same index as `dialogueLines` — defaults to "neutral" where omitted. */
+  dialogueExpressions?: Expression[];
   /**
    * A short follow-up exchange, played automatically (no Talk button needed)
    * the moment the player returns to Israel after completing this encounter's
@@ -26,6 +29,7 @@ export interface ParableEncounter {
    */
   returnDialogueLines: LocaleKey[];
   returnDialogueSpeakers: LocaleKey[];
+  returnDialogueExpressions?: Expression[];
   /**
    * A very short exchange offering to play the parable again — shown right
    * after `returnDialogueLines` finishes on the first live completion, and
@@ -36,6 +40,7 @@ export interface ParableEncounter {
    */
   replayDialogueLines: LocaleKey[];
   replayDialogueSpeakers: LocaleKey[];
+  replayDialogueExpressions?: Expression[];
 }
 
 /**
@@ -57,13 +62,16 @@ export const PARABLE_ENCOUNTERS: ParableEncounter[] = [
       "world.encounter.lostSheep.line4",
     ],
     dialogueSpeakers: ["world.speaker.shepherd", "world.speaker.jesus", "world.speaker.shepherd", "world.speaker.jesus"],
+    dialogueExpressions: ["sad", "concerned", "sad", "warm"],
     returnDialogueLines: [
       "world.encounter.lostSheep.return1",
       "world.encounter.lostSheep.return2",
       "world.encounter.lostSheep.return3",
     ],
     returnDialogueSpeakers: ["world.speaker.shepherd", "world.speaker.jesus", "world.speaker.shepherd"],
+    returnDialogueExpressions: ["concerned", "warm", "joyful"],
     replayDialogueLines: ["world.encounter.lostSheep.replay1", "world.encounter.lostSheep.replay2"],
     replayDialogueSpeakers: ["world.speaker.shepherd", "world.speaker.jesus"],
+    replayDialogueExpressions: ["neutral", "warm"],
   },
 ];
