@@ -621,7 +621,6 @@ export function LostSheepScene({ onExit, onRetry, onVictory }: ParableSceneProps
         <DialogueOverlay
           seed="lost-sheep-intro"
           lines={["lostSheep.intro.line1", "lostSheep.intro.line2", "lostSheep.intro.line3"]}
-          expressions={["neutral", "concerned", "neutral"]}
           onComplete={handleDialogueComplete}
         />
       )}
@@ -630,7 +629,6 @@ export function LostSheepScene({ onExit, onRetry, onVictory }: ParableSceneProps
         <DialogueOverlay
           seed="lost-sheep-conclusion"
           lines={["lostSheep.conclusion.line1", "lostSheep.conclusion.line2"]}
-          expressions={["joyful", "warm"]}
           onComplete={handleConclusionComplete}
         />
       )}

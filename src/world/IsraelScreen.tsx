@@ -295,7 +295,6 @@ export function IsraelScreen() {
           seed={`${talkingEncounter.id}-${talkingMode}`}
           lines={talkingMode === "replay" ? talkingEncounter.replayDialogueLines : talkingEncounter.dialogueLines}
           speakers={talkingMode === "replay" ? talkingEncounter.replayDialogueSpeakers : talkingEncounter.dialogueSpeakers}
-          expressions={talkingMode === "replay" ? talkingEncounter.replayDialogueExpressions : talkingEncounter.dialogueExpressions}
           onBack={handleBackFromDialogue}
           onComplete={handleDialogueComplete}
         />
@@ -308,7 +307,6 @@ export function IsraelScreen() {
           seed={`${returningEncounter.id}-return`}
           lines={returningEncounter.returnDialogueLines}
           speakers={returningEncounter.returnDialogueSpeakers}
-          expressions={returningEncounter.returnDialogueExpressions}
           onComplete={handleReturnDialogueComplete}
         />
       )}
