@@ -10,14 +10,22 @@ interface JesusPortraitProps {
   speaking: boolean;
 }
 
-const MOUTH_BASE_MS = 260;
-const MOUTH_JITTER_MS = 220;
+/** Open bursts are brief, like a syllable. */
+const MOUTH_OPEN_MIN_MS = 140;
+const MOUTH_OPEN_RANGE_MS = 170;
+/** Closed gaps are usually short, but occasionally a longer natural pause. */
+const MOUTH_CLOSED_MIN_MS = 150;
+const MOUTH_CLOSED_RANGE_MS = 220;
+const MOUTH_LONG_PAUSE_CHANCE = 0.22;
+const MOUTH_LONG_PAUSE_MIN_MS = 420;
+const MOUTH_LONG_PAUSE_RANGE_MS = 340;
+
 const BLINK_BASE_MS = 2400;
 const BLINK_JITTER_MS = 2600;
 const BLINK_DURATION_MS = 110;
-/** Every 5-7 normal blinks, do a quick double blink instead — occasional, not mechanically regular. */
-const DOUBLE_BLINK_EVERY_MIN = 5;
-const DOUBLE_BLINK_EVERY_RANGE = 3;
+/** Every 2-5 normal blinks, do a quick double blink instead — occasional, not mechanically regular. */
+const DOUBLE_BLINK_EVERY_MIN = 2;
+const DOUBLE_BLINK_EVERY_RANGE = 4;
 const DOUBLE_BLINK_GAP_MS = 500;
 
 /**
@@ -36,11 +44,20 @@ export function JesusPortrait({ speaking }: JesusPortraitProps) {
       return;
     }
     let timeout: ReturnType<typeof setTimeout>;
-    const tick = () => {
-      setMouthOpen((open) => !open);
-      timeout = setTimeout(tick, MOUTH_BASE_MS + Math.random() * MOUTH_JITTER_MS);
+    let isOpen = false;
+    const scheduleNext = () => {
+      const delay = isOpen
+        ? MOUTH_OPEN_MIN_MS + Math.random() * MOUTH_OPEN_RANGE_MS
+        : Math.random() < MOUTH_LONG_PAUSE_CHANCE
+          ? MOUTH_LONG_PAUSE_MIN_MS + Math.random() * MOUTH_LONG_PAUSE_RANGE_MS
+          : MOUTH_CLOSED_MIN_MS + Math.random() * MOUTH_CLOSED_RANGE_MS;
+      timeout = setTimeout(() => {
+        isOpen = !isOpen;
+        setMouthOpen(isOpen);
+        scheduleNext();
+      }, delay);
     };
-    timeout = setTimeout(tick, MOUTH_BASE_MS + Math.random() * MOUTH_JITTER_MS);
+    scheduleNext();
     return () => clearTimeout(timeout);
   }, [speaking]);
 
