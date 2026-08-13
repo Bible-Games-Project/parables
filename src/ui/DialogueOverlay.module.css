@@ -7,6 +7,18 @@
   z-index: 20;
 }
 
+.body {
+  display: flex;
+  align-items: flex-start;
+  gap: clamp(0.5rem, 3vw, 0.9rem);
+  margin-bottom: 0.2rem;
+}
+
+.textColumn {
+  flex: 1;
+  min-width: 0;
+}
+
 .speaker {
   font-size: 0.7rem;
   color: #e8b23d;

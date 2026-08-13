@@ -1,9 +1,13 @@
 import { useState } from "react";
 import { PixelPanel } from "@/ui/PixelPanel";
 import { PixelButton } from "@/ui/PixelButton";
+import { JesusPortrait } from "@/ui/Portrait";
 import { useT } from "@/locales/useT";
 import type { LocaleKey } from "@/locales/en";
 import styles from "@/ui/DialogueOverlay.module.css";
+
+/** Unattributed lines (no `speakers` prop at all) default to Jesus as narrator. */
+const JESUS_SPEAKER_KEY: LocaleKey = "world.speaker.jesus";
 
 interface DialogueOverlayProps {
   lines: LocaleKey[];
@@ -21,6 +25,7 @@ export function DialogueOverlay({ lines, speakers, onComplete, onBack, seed = "d
   const [index, setIndex] = useState(0);
   const isLast = index >= lines.length - 1;
   const speakerKey = speakers?.[index];
+  const isJesusSpeaking = speakerKey === JESUS_SPEAKER_KEY || !speakers;
 
   const advance = () => {
     if (isLast) onComplete();
@@ -30,8 +35,13 @@ export function DialogueOverlay({ lines, speakers, onComplete, onBack, seed = "d
   return (
     <div className={styles.wrap}>
       <PixelPanel seed={seed}>
-        {speakerKey && <p className={styles.speaker}>{t(speakerKey)}</p>}
-        <p className={styles.text}>{t(lines[index])}</p>
+        <div className={styles.body}>
+          {isJesusSpeaking && <JesusPortrait speaking />}
+          <div className={styles.textColumn}>
+            {speakerKey && <p className={styles.speaker}>{t(speakerKey)}</p>}
+            <p className={styles.text}>{t(lines[index])}</p>
+          </div>
+        </div>
         <div className={styles.actions}>
           <div className={styles.secondaryGroup}>
             {onBack && (
