@@ -9,7 +9,8 @@ import {
 } from "@/engine/collision";
 import { steerToward } from "@/engine/chaseAI";
 import { createRng } from "@/pixel-art/prng";
-import { createJesusSprite, createVillagerSprite, type HumanoidVisual, type VillagerVariant } from "@/world/sprites";
+import { createVillagerSprite, type HumanoidVisual, type VillagerVariant } from "@/world/sprites";
+import { createJesusVisual, type JesusPose, type JesusVisual } from "@/world/jesusSprite";
 
 /**
  * Sets left/right facing from a horizontal velocity/direction sample. Uses a
@@ -26,55 +27,34 @@ function applyFacing(body: { scale: { x: number } }, velocityX: number): void {
   else if (!facingRight && velocityX > flipThreshold) body.scale.x = 1;
 }
 
-/**
- * One hand-posed walk-cycle frame for Jesus, expressed as offsets from the
- * neutral standing pose. Rotations are in radians, `bodyY` in local pixels.
- * This table (plus `JESUS_WALK_FRAME_DURATION`) is Jesus-only — the ambient
- * `Npc` class below has its own, untouched animation and never reads this.
- */
-interface JesusWalkFrame {
-  leftLegRotation: number;
-  rightLegRotation: number;
-  frontArmRotation: number;
-  backArmRotation: number;
-  bodyY: number;
-}
-
-/**
- * A 4-frame walk cycle — contact, passing, contact, passing — stepped
- * through at a fixed cadence (see `JESUS_WALK_FRAME_DURATION`) rather than
- * driven by a continuous sine, so the motion reads as swapped hand-drawn
- * poses instead of a smoothly rotating puppet. Amplitudes are deliberately
- * small (subtle step, subtle arm counter-swing, ~half-pixel weight bob) to
- * avoid an exaggerated swing while keeping feet planted near the ground line.
- * Future activity states (IDLE_SITTING, INTERACT, etc.) would each get their
- * own small pose table like this one, selected by whatever state Jesus is in.
- */
-const JESUS_WALK_FRAMES: readonly JesusWalkFrame[] = [
-  { leftLegRotation: -0.32, rightLegRotation: 0.28, frontArmRotation: 0.24, backArmRotation: -0.2, bodyY: 0 },
-  { leftLegRotation: -0.08, rightLegRotation: 0.08, frontArmRotation: 0.08, backArmRotation: -0.06, bodyY: -0.6 },
-  { leftLegRotation: 0.28, rightLegRotation: -0.32, frontArmRotation: -0.2, backArmRotation: 0.24, bodyY: 0 },
-  { leftLegRotation: 0.08, rightLegRotation: -0.08, frontArmRotation: -0.06, backArmRotation: 0.08, bodyY: -0.6 },
-];
+const JESUS_WALK_POSES: readonly JesusPose[] = ["walk-0", "walk-1", "walk-2", "walk-3"];
 
 /** How long each walk-cycle pose is held before swapping to the next — a deliberate, unhurried step rate. */
 const JESUS_WALK_FRAME_DURATION = 0.13;
+/** How long each breathing pose is held — slow and easy to miss, the way real idle breathing reads. */
+const JESUS_BREATHE_FRAME_DURATION = 1.8;
 
-/** The player's character in Israel — walks and idles, same construction technique as the Lost Sheep shepherd, but no combat or health: this is an exploration hub, not a rescue level. */
+/**
+ * The player's character in Israel — walks and idles. Unlike the ambient
+ * NPCs below (still the procedural vector rig from `sprites.ts`), Jesus is
+ * the supplied hand-drawn sprite (`jesusSprite.ts`), animated by swapping
+ * between a handful of hand-edited pixel-art frames on a fixed timer —
+ * never by rotating limbs or scaling the sprite.
+ */
 export class Jesus {
   position: Vector2;
   radius = 7;
   speed = 92;
-  sprite: HumanoidVisual;
+  sprite: JesusVisual;
 
   private walkFrameTimer = 0;
   private walkFrameIndex = 0;
-  private idlePhase = 0;
-  private walkBlend = 0;
+  private breatheTimer = 0;
+  private breatheFrame: 0 | 1 = 0;
 
   constructor(start: Vector2) {
     this.position = { ...start };
-    this.sprite = createJesusSprite();
+    this.sprite = createJesusVisual();
     this.sprite.container.position.set(start.x, start.y);
   }
 
@@ -95,38 +75,28 @@ export class Jesus {
     this.sprite.container.zIndex = this.position.y;
     applyFacing(this.sprite.body, direction.x);
 
-    const target = moving ? 1 : 0;
-    this.walkBlend += (target - this.walkBlend) * Math.min(1, dt * 5);
-    this.idlePhase += dt;
-    const walkEase = this.walkBlend * this.walkBlend * (3 - 2 * this.walkBlend);
-
-    // Step through the walk-cycle poses on a fixed timer (frame-swap) instead of a continuous
-    // phase, and reset to the first (planted) pose the moment Jesus stops so he never freezes
-    // mid-stride with a foot lifted.
+    // Step through poses on a fixed timer (frame-swap, not a continuous phase) so the motion
+    // reads as swapped hand-drawn pixel-art frames. The instant he stops, snap straight back to
+    // the planted standing pose so he's never left frozen mid-stride with a foot lifted.
     if (moving) {
+      this.breatheTimer = 0;
+      this.breatheFrame = 0;
       this.walkFrameTimer += dt;
       while (this.walkFrameTimer >= JESUS_WALK_FRAME_DURATION) {
         this.walkFrameTimer -= JESUS_WALK_FRAME_DURATION;
-        this.walkFrameIndex = (this.walkFrameIndex + 1) % JESUS_WALK_FRAMES.length;
+        this.walkFrameIndex = (this.walkFrameIndex + 1) % JESUS_WALK_POSES.length;
       }
+      this.sprite.setPose(JESUS_WALK_POSES[this.walkFrameIndex]);
     } else {
       this.walkFrameTimer = 0;
       this.walkFrameIndex = 0;
+      this.breatheTimer += dt;
+      while (this.breatheTimer >= JESUS_BREATHE_FRAME_DURATION) {
+        this.breatheTimer -= JESUS_BREATHE_FRAME_DURATION;
+        this.breatheFrame = this.breatheFrame === 0 ? 1 : 0;
+      }
+      this.sprite.setPose(this.breatheFrame === 0 ? "idle-0" : "idle-1");
     }
-
-    const frame = JESUS_WALK_FRAMES[this.walkFrameIndex];
-    this.sprite.leftLeg.rotation = frame.leftLegRotation * walkEase;
-    this.sprite.rightLeg.rotation = frame.rightLegRotation * walkEase;
-    this.sprite.frontArm.rotation = frame.frontArmRotation * walkEase;
-    this.sprite.backArm.rotation = frame.backArmRotation * walkEase;
-    const bodyBobWalk = frame.bodyY * walkEase;
-    const bodyBobIdle = Math.sin(this.idlePhase * 1.7) * 0.4 * (1 - walkEase);
-    this.sprite.body.y = bodyBobWalk + bodyBobIdle;
-    const headSway = Math.sin(this.idlePhase * 1.4) * 0.05 * (1 - walkEase);
-    this.sprite.head.rotation = headSway;
-
-    const breathe = Math.sin(this.idlePhase * 1.6) * 0.02 * (1 - walkEase);
-    this.sprite.torso.scale.set(1 + breathe * 0.6, 1 + breathe);
   }
 }
 

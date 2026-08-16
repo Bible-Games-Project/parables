@@ -267,32 +267,6 @@ function buildHumanoid(colors: HumanoidColors, shapeInput: HumanoidShape = {}): 
   return { container, body, torso, head, leftLeg, rightLeg, frontArm, backArm };
 }
 
-/** A subtle pixel-art halo, warm and pastel — attached just behind Jesus's head so it moves with him without fighting his idle head-sway. */
-function buildHalo(): Graphics {
-  const g = new Graphics();
-  const cy = -24.4;
-  g.ellipse(0, cy + 0.7, 6.4, 2.1).fill({ color: hexToNumber(palette.gold), alpha: 0.13 });
-  g.ellipse(0, cy, 5.4, 1.6).stroke({ width: 1.3, color: hexToNumber(palette.gold), alpha: 0.85 });
-  g.ellipse(0, cy - 0.35, 5.4, 1.6).stroke({ width: 0.55, color: hexToNumber(palette.wool.highlight), alpha: 0.55 });
-  return g;
-}
-
-/** Jesus — warm off-white robe, muted brick-red mantle, a soft halo. The player's character in Israel. */
-export function createJesusSprite(): HumanoidVisual {
-  const visual = buildHumanoid({
-    robeShadow: palette.jesusRobe.shadow,
-    robeBase: palette.jesusRobe.base,
-    robeHighlight: palette.jesusRobe.highlight,
-    mantleShadow: palette.jesusMantle.shadow,
-    mantleBase: palette.jesusMantle.base,
-    mantleHighlight: palette.jesusMantle.highlight,
-    clasp: "#5f8f8a",
-  });
-  const halo = buildHalo();
-  visual.body.addChildAt(halo, visual.body.getChildIndex(visual.head));
-  return visual;
-}
-
 export type VillagerVariant =
   | "shepherd"
   | "adultMan"
