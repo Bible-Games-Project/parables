@@ -1,4 +1,4 @@
-import { Assets, Container, Graphics, Sprite, Texture } from "pixi.js";
+import { Container, Graphics, Sprite, Texture } from "pixi.js";
 import { hexToNumber } from "@/pixel-art/color";
 import { palette } from "@/pixel-art/palette";
 
@@ -33,19 +33,33 @@ const POSE_TEXTURE_URLS: Record<JesusPose, string> = {
 };
 
 // `Texture.from(url)` never fetches anything by itself — it only reads what `Assets` already has
-// cached, warning and handing back an empty texture otherwise. These PNGs have to be fetched and
-// decoded via `Assets.load` first; every sprite created before that resolves starts on
-// `Texture.EMPTY` and is upgraded to the real frame the moment loading finishes (see `setPose`).
+// cached, warning and handing back an empty texture otherwise. Loading through `Assets.load` (a
+// `fetch`) works everywhere this app is actually hosted, but a sandboxed embed can run under a CSP
+// that permits `img-src data:` while blocking `fetch()` of the same data URI — so instead each PNG
+// is decoded through a plain `HTMLImageElement`, the same mechanism a `<img src>` or CSS
+// `background-image` uses, which every CSP that allows loading these assets at all permits. Every
+// sprite created before decoding finishes starts on `Texture.EMPTY` and is upgraded to the real
+// frame the moment it's ready (see `setPose`).
 let poseTextures: Partial<Record<JesusPose, Texture>> | null = null;
 let loadStarted: Promise<void> | null = null;
 
+function loadImageTexture(url: string): Promise<Texture> {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve(Texture.from(image));
+    image.onerror = () => reject(new Error(`Failed to load ${url}`));
+    image.src = url;
+  });
+}
+
 function ensurePoseTexturesLoading(): Promise<void> {
   if (!loadStarted) {
-    loadStarted = Assets.load(Object.values(POSE_TEXTURE_URLS)).then((loaded: Record<string, Texture>) => {
+    const poses = Object.keys(POSE_TEXTURE_URLS) as JesusPose[];
+    loadStarted = Promise.all(poses.map((pose) => loadImageTexture(POSE_TEXTURE_URLS[pose]))).then((textures) => {
       const map: Partial<Record<JesusPose, Texture>> = {};
-      for (const pose of Object.keys(POSE_TEXTURE_URLS) as JesusPose[]) {
-        map[pose] = loaded[POSE_TEXTURE_URLS[pose]];
-      }
+      poses.forEach((pose, i) => {
+        map[pose] = textures[i];
+      });
       poseTextures = map;
     });
   }
