@@ -26,6 +26,40 @@ function applyFacing(body: { scale: { x: number } }, velocityX: number): void {
   else if (!facingRight && velocityX > flipThreshold) body.scale.x = 1;
 }
 
+/**
+ * One hand-posed walk-cycle frame for Jesus, expressed as offsets from the
+ * neutral standing pose. Rotations are in radians, `bodyY` in local pixels.
+ * This table (plus `JESUS_WALK_FRAME_DURATION`) is Jesus-only — the ambient
+ * `Npc` class below has its own, untouched animation and never reads this.
+ */
+interface JesusWalkFrame {
+  leftLegRotation: number;
+  rightLegRotation: number;
+  frontArmRotation: number;
+  backArmRotation: number;
+  bodyY: number;
+}
+
+/**
+ * A 4-frame walk cycle — contact, passing, contact, passing — stepped
+ * through at a fixed cadence (see `JESUS_WALK_FRAME_DURATION`) rather than
+ * driven by a continuous sine, so the motion reads as swapped hand-drawn
+ * poses instead of a smoothly rotating puppet. Amplitudes are deliberately
+ * small (subtle step, subtle arm counter-swing, ~half-pixel weight bob) to
+ * avoid an exaggerated swing while keeping feet planted near the ground line.
+ * Future activity states (IDLE_SITTING, INTERACT, etc.) would each get their
+ * own small pose table like this one, selected by whatever state Jesus is in.
+ */
+const JESUS_WALK_FRAMES: readonly JesusWalkFrame[] = [
+  { leftLegRotation: -0.32, rightLegRotation: 0.28, frontArmRotation: 0.24, backArmRotation: -0.2, bodyY: 0 },
+  { leftLegRotation: -0.08, rightLegRotation: 0.08, frontArmRotation: 0.08, backArmRotation: -0.06, bodyY: -0.6 },
+  { leftLegRotation: 0.28, rightLegRotation: -0.32, frontArmRotation: -0.2, backArmRotation: 0.24, bodyY: 0 },
+  { leftLegRotation: 0.08, rightLegRotation: -0.08, frontArmRotation: -0.06, backArmRotation: 0.08, bodyY: -0.6 },
+];
+
+/** How long each walk-cycle pose is held before swapping to the next — a deliberate, unhurried step rate. */
+const JESUS_WALK_FRAME_DURATION = 0.13;
+
 /** The player's character in Israel — walks and idles, same construction technique as the Lost Sheep shepherd, but no combat or health: this is an exploration hub, not a rescue level. */
 export class Jesus {
   position: Vector2;
@@ -33,7 +67,8 @@ export class Jesus {
   speed = 92;
   sprite: HumanoidVisual;
 
-  private walkPhase = 0;
+  private walkFrameTimer = 0;
+  private walkFrameIndex = 0;
   private idlePhase = 0;
   private walkBlend = 0;
 
@@ -62,16 +97,29 @@ export class Jesus {
 
     const target = moving ? 1 : 0;
     this.walkBlend += (target - this.walkBlend) * Math.min(1, dt * 5);
-    this.walkPhase += dt * 8.5;
     this.idlePhase += dt;
     const walkEase = this.walkBlend * this.walkBlend * (3 - 2 * this.walkBlend);
 
-    const legAmp = 0.5 * walkEase;
-    this.sprite.leftLeg.rotation = Math.sin(this.walkPhase) * legAmp;
-    this.sprite.rightLeg.rotation = -Math.sin(this.walkPhase) * legAmp;
-    this.sprite.frontArm.rotation = -Math.sin(this.walkPhase) * 0.32 * walkEase;
-    this.sprite.backArm.rotation = Math.sin(this.walkPhase) * 0.32 * walkEase;
-    const bodyBobWalk = Math.sin(this.walkPhase * 2) * 1 * walkEase;
+    // Step through the walk-cycle poses on a fixed timer (frame-swap) instead of a continuous
+    // phase, and reset to the first (planted) pose the moment Jesus stops so he never freezes
+    // mid-stride with a foot lifted.
+    if (moving) {
+      this.walkFrameTimer += dt;
+      while (this.walkFrameTimer >= JESUS_WALK_FRAME_DURATION) {
+        this.walkFrameTimer -= JESUS_WALK_FRAME_DURATION;
+        this.walkFrameIndex = (this.walkFrameIndex + 1) % JESUS_WALK_FRAMES.length;
+      }
+    } else {
+      this.walkFrameTimer = 0;
+      this.walkFrameIndex = 0;
+    }
+
+    const frame = JESUS_WALK_FRAMES[this.walkFrameIndex];
+    this.sprite.leftLeg.rotation = frame.leftLegRotation * walkEase;
+    this.sprite.rightLeg.rotation = frame.rightLegRotation * walkEase;
+    this.sprite.frontArm.rotation = frame.frontArmRotation * walkEase;
+    this.sprite.backArm.rotation = frame.backArmRotation * walkEase;
+    const bodyBobWalk = frame.bodyY * walkEase;
     const bodyBobIdle = Math.sin(this.idlePhase * 1.7) * 0.4 * (1 - walkEase);
     this.sprite.body.y = bodyBobWalk + bodyBobIdle;
     const headSway = Math.sin(this.idlePhase * 1.4) * 0.05 * (1 - walkEase);
