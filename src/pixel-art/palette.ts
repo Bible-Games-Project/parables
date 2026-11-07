@@ -140,18 +140,6 @@ export const palette = {
     base: "#bd6a45",
     highlight: "#e0a06a",
   },
-  /** Jesus's robe — a warm off-white, never stark/saturated, to stay inside the same warm-pastel family as everything else. */
-  jesusRobe: {
-    shadow: "#d9cdb8",
-    base: "#f7f0e2",
-    highlight: "#fffbf2",
-  },
-  /** Jesus's mantle — a muted brick red, desaturated so it reads as an accent, not a saturated pop. */
-  jesusMantle: {
-    shadow: "#8a3a30",
-    base: "#c05a48",
-    highlight: "#dd9078",
-  },
   /** A soft sage-green robe for farmer/field NPCs, keeping the same pastel family as the rest of the cast. */
   farmerRobe: {
     shadow: "#8a9a5c",
